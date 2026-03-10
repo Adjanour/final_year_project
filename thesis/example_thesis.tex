@@ -1,0 +1,118 @@
+% =============================================================================
+% EXAMPLE THESIS - Complete Example
+% =============================================================================
+% This file shows a complete thesis setup as an example.
+% Use thesis.tex as your starting template.
+% =============================================================================
+
+\documentclass[oneside,12pt]{Latex/Classes/PhDthesisPSnPDF}
+\usepackage{acro}
+\usepackage{nicefrac}
+\usepackage{geometry}
+\usepackage[sc]{mathpazo}
+\usepackage{multicol}
+\usepackage{float}
+\usepackage{natbib}
+\usepackage{listings}
+\usepackage{appendix}
+\usepackage{color,xcolor,soul}
+\usepackage{enumitem}
+\usepackage[titles]{tocloft}
+\usepackage{titlesec}
+
+\titlespacing\section{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+\titlespacing\subsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+\titlespacing\subsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+
+\titleformat*{\section}{\normalfont\fontsize{12}{19}\bfseries}
+\titleformat*{\subsection}{\normalfont\fontsize{12}{17}}
+\titleformat*{\subsubsection}{\normalfont\fontsize{12}{17}}
+
+\titlecontents{chapter}[0pt]{\bfseries}{\MakeUppercase{\bfseries\chaptername}\ \bfseries\thecontentslabel\quad}{}{\bfseries\hfill\contentspage}
+
+\tolerance=1
+\emergencystretch=\maxdimen
+\hyphenpenalty=10000
+\hbadness=10000
+
+\setcitestyle{authoryear, round, longnamesfirst}
+
+\geometry{
+	paper=a4paper,
+	inner=0.0cm,
+	outer=0.0cm,
+	top=2.54cm,
+	bottom=2.54cm,
+	right=2.54cm,
+	left=3.02cm
+}
+
+\ifpdf  
+    \pdfinfo { /Title  (Your Thesis Title)
+               /Creator (TeX)
+               /Producer (pdfTeX)
+               /Author (Your Name)
+               /CreationDate (D:YYYYMMDDhhmmss)
+               /ModDate (D:YYYYMMDDhhmm)
+               /Subject (Your Subject)
+               /Keywords (keyword1, keyword2) }
+    \pdfcatalog { /PageMode (/UseOutlines) /OpenAction (fitbh) }
+\fi
+
+\title{Your Thesis Title}
+\author{Your Name}
+\collegeordept{Your Department}
+\university{Your University Name}
+\crest{\includegraphics[width=4cm]{logo}}
+\degree{Your Degree Name}
+\degreedate{Month, Year}
+
+\linewidth
+
+\begin{document}
+\include{Latex/Macros/MacroFile1}
+\setlength{\parskip}{0.8em}
+
+
+
+\baselineskip=18pt plus1pt
+
+% Title page
+\maketitl
+
+\frontmatter
+
+% Declaration (optional)
+%\include{backmatter/declaration}
+
+\include{frontmatter/abstract}
+\include{frontmatter/dedication}
+\include{frontmatter/acknowledgement}
+
+\begingroup
+\tableofcontents
+\endgroup
+
+\begingroup
+\listoffigures
+\endgroup
+
+%\listoftables
+
+\mainmatter
+
+\include{introduction/introduction}
+\include{literature_review/literature_review}
+\include{methodology/methodology}
+\include{results_discussion/results_discussion}
+\include{conclusion/conclusion}
+
+\begingroup
+\bibliographystyle{agsm}
+\bibliography{backmatter/references}
+\endgroup
+
+%\appendix
+%\chapter{Appendix A}
+
+\end{document}
