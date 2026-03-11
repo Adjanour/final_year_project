@@ -1,0 +1,223 @@
+% =============================================================================
+% CHAPTER 1 - INTRODUCTION
+% =============================================================================
+
+\chapter{INTRODUCTION}
+
+\ifpdf
+    \graphicspath{{introduction/figures/PNG}{introduction/figures/PDF}{introduction/figures}}
+\else
+    \graphicspath{{introduction/figures/EPS}{introduction/figures}}
+\fi
+
+\section{Background}
+Large language models (LLMs) are neural networks trained to assign probability distributions over sequences of discrete tokens drawn from a fixed vocabulary $V$, where $|V|$ is typically on the order of 32,000 to 100,000 items. The dominant architecture is the Transformer \citep{vaswani2017attention}, which processes input token sequences through stacked layers of multi-head self-attention and position-wise feed-forward networks. Pretraining on large text corpora via next-token prediction instils broad linguistic and factual competence, as demonstrated by the GPT family \citep{brown2020language} and the Llama series \citep{touvron2023llama,dubey2024llama}.
+
+Generation is autoregressive: given an input prompt $x$ and a sequence of tokens already generated $y_0, \dots, y_{t-1}$, the model computes a vector of unnormalised scores --- logits --- $\alpha \in \mathbb{R}^{|V|}$ over the vocabulary, from which the next token $y_t$ is sampled:
+\begin{equation}
+    P(y_t \mid y_0 \dots y_{t-1}, x) = \operatorname{softmax}(\alpha)_t
+\end{equation}
+
+The full sequence probability factorises as the product of these per-step conditionals. Two decoding strategies are relevant to this work. Greedy decoding selects the highest-probability token at each step, which is fast but myopic. Beam search maintains a set of $k$ candidate sequences (the beam) in parallel, expanding each at every step and retaining only the top-$k$ by cumulative log-probability. Because downstream performance depends on which token is committed to at each step, the decoding process is a critical locus for quality control --- and the primary site of intervention in constrained decoding methods.
+
+A key property of this formulation is that the logit vector $\alpha$ is computed over the entire vocabulary at every generation step. This means that, absent any intervention, every token in $V$ is in principle a candidate continuation regardless of external validity constraints. It is precisely this property that constrained decoding exploits: by modifying $\alpha$ before sampling, invalid tokens can be made unreachable.
+
+\section{Hallucination and the Faithfulness Problem}
+
+Despite strong performance on open-ended tasks, LLMs are prone to hallucination: the generation of fluent, grammatically well-formed text that is factually incorrect or unsupported by any verifiable source. Hallucination arises structurally from the autoregressive objective. Because each token conditions on previously generated tokens, early incorrect commitments propagate forward: the model must maintain internal coherence with its own outputs rather than with external ground truth. The result is that factual errors compound across a generation, particularly in multi-step reasoning chains where each step serves as the input to the next.
+
+Two categories of knowledge are in tension. Parametric knowledge is the factual information encoded in the model's weights during pretraining. It is fixed at training time, imperfectly distributed across billions of parameters, and inaccessible for direct inspection or correction. Contextual knowledge is information supplied at inference time --- in the prompt, retrieved documents, or structured data. Contextual knowledge is verifiable, updateable, and auditable. The faithfulness problem is the mismatch between these two: when parametric knowledge is insufficient or incorrect for a given task, the model generates plausible-sounding but unfaithful outputs. For knowledge-intensive tasks such as question answering, this is not an edge case but a systematic failure mode.
+
+\citet{luo2024gcr} provide a concrete quantification of this problem in the context of KG-grounded reasoning: RoG, a leading KG-enhanced method, still produces hallucinated reasoning steps in 33\% of cases despite having access to a verified knowledge graph. This motivates the use of hard constraints on generation rather than soft prompting or retrieval, which leaves the model free to override external knowledge with parametric knowledge at any step.
+
+\section{Knowledge Graphs as Structured External Knowledge}
+
+A knowledge graph (KG) is a directed multigraph $G = \{(e, r, e') \in E \times R \times E\}$ in which nodes represent entities $E$ and labelled edges represent relations $R$. Each edge is a fact triplet of the form (head entity, relation, tail entity), encoding an atomic factual claim such as (Marie Curie, born in, Warsaw) or (Blue Hawaii, filmed in, Hawaii). This triplet structure makes KG knowledge both machine-readable and human-auditable, which distinguishes KGs from unstructured text as a knowledge source.
+
+The most widely used KGs in NLP research are Freebase \citep{bollacker2008freebase}, Wikidata \citep{vrandevcic2014wikidata}, and ConceptNet \citep{speer2017conceptnet}. Freebase, used in the experiments of this work via the WebQSP and CWQ benchmarks, contains approximately 2.5 million entities and 8.3 million verified fact triplets. These figures are important for contextualising the scale of the knowledge space that constrained decoding must navigate. A key limitation of all real-world KGs is incompleteness: not every true fact about every entity is represented. Reasoning methods that rely on KG grounding must account for the possibility that the correct answer is absent from the graph, as discussed in the failure-case analysis later in this thesis.
+
+The structural nature of knowledge graphs is both their strength and the source of the central challenge addressed by this work. Because knowledge is organised as a graph of connected triplets, reasoning over a KG is fundamentally a path-finding problem: given a question about entity $e_0$, the answer can be reached by following a sequence of relations $r_1, r_2, \dots, r_\ell$ from $e_0$ to some answer entity $e_\ell$. The number of such paths grows exponentially with path length and graph density, which creates the search space problem that motivates constrained decoding approaches.
+
+\section{Knowledge Graph Question Answering}
+\label{sec:kgqa}
+
+Knowledge graph question answering (KGQA) is the task of answering a natural language question $q$ by finding supporting information in a knowledge graph $G$. Formally, a KGQA system designs a function $f$ such that
+\begin{equation}
+    a = f(q, G),
+\end{equation}
+where $a$ is the answer entity or set of entities. The entities mentioned in $q$ are first linked to corresponding nodes in $G$ (entity linking), and the answer is reached by reasoning along one or more paths from those nodes.
+
+KGQA constitutes a natural evaluation domain for KG-constrained generation methods because it requires both linguistic understanding of the question and structured traversal of the graph --- a combination that neither pure LLM reasoning nor pure graph traversal handles well alone.
+
+Existing approaches to KGQA can be organised into two main paradigms, as characterised by \citet{luo2024reasoning}:
+
+\paragraph{Retrieval-based methods} retrieve a question-relevant subgraph from $G$ using a trained retriever, then provide the subgraph as context to an LLM for answer prediction. RoG \citep{luo2024reasoning} and GNN-RAG \citep{mavromatis2024gnn} are representative examples. These methods are relatively efficient and can narrow the reasoning space considerably, but their accuracy ceiling is determined by retriever quality: paths that the retriever ranks poorly are simply absent from the LLM's context. Retrieved subgraphs may also contain noise that confuses the LLM without providing additional signal. Crucially, the LLM is not involved in the retrieval step and cannot correct retrieval errors.
+
+\paragraph{Agent-based methods} treat the LLM as an active agent that iteratively queries the KG, selects relevant relations, and accumulates evidence hop by hop. Think-on-Graph \citep{sun2024think} and Tree-of-Traversals \citep{markowitz2024tree} are leading examples. These methods leverage the LLM's reasoning capabilities more fully but place high demands on instruction-following ability, making them unreliable for smaller LLMs. Each additional LLM call introduces latency and increases the risk of the model deviating from the graph into parametric knowledge.
+
+Both paradigms leave a meaningful proportion of KG structure underutilised. Retrieval-based methods consult the graph once; agent-based methods consult it iteratively but through the bottleneck of natural language instructions. Neither integrates KG structure directly into the token generation process. This observation motivates the constrained decoding approaches discussed in the following sections.
+
+The standard evaluation benchmarks for KGQA are WebQuestionSP (WebQSP; \citealp{yih2016value}), which contains 1,628 test questions requiring up to 2-hop reasoning on Freebase, and Complex WebQuestions (CWQ; \citealp{talmor2018web}), which contains 3,531 test questions requiring up to 4-hop reasoning. Performance is typically measured by Hits@1 (the proportion of questions for which the top-1 predicted answer matches the gold answer) and by F1 score over the predicted answer set.
+
+\section{Constrained Decoding}
+
+Constrained decoding is a family of techniques that modify the LLM's token probability distribution at inference time to enforce structural or semantic validity constraints on the generated output. The core operation is logit masking: a boolean mask $m \in \{0,1\}^{|V|}$ is computed at each generation step and applied elementwise to the logit vector $\alpha$ before the softmax:
+\begin{equation}
+    \tilde{\alpha} = m(y_0 \dots y_{t-1}, x) \odot \alpha
+\end{equation}
+Tokens for which $m = 0$ receive logit $-\infty$ and are thus assigned zero probability, making them unreachable by any decoding strategy. Tokens for which $m = 1$ retain their original probabilities, which are then renormalised after masking. The LLM's parametric knowledge still governs selection among the remaining valid tokens; the mask only removes invalid ones. This constitutes a \emph{hard constraint}: unlike prompt engineering or retrieval augmentation, it is mathematically impossible for the model to generate a masked token.
+
+The central engineering challenge is computing $m$ efficiently. A naive approach evaluates each of the $|V|$ vocabulary tokens against the constraint at every generation step, incurring an $O(|V|)$ cost per token. For vocabularies of 32,000 to 100,000 items and sequences of hundreds of tokens, this cost is prohibitive.
+
+\citet{willard2023outlines} address this for regular expression constraints by reformulating the problem in terms of finite-state machines (FSMs). A regular expression is compiled into an FSM; the vocabulary is pre-indexed against the FSM offline, constructing a map from FSM states to the set of vocabulary tokens valid in that state. At inference time, the current FSM state is tracked across generation steps, and the valid token set is retrieved in $O(1)$ via the pre-built index. This reduces a per-step $O(|V|)$ computation to an amortised $O(1)$ lookup, making constrained decoding practically viable.
+
+Grammar-constrained decoding (GCD; \citealp{geng2023gcd}) generalises this approach to context-free grammars (CFGs), which are strictly more expressive than regular expressions and sufficient to describe the output spaces of a wide range of structured NLP tasks. GCD uses an incremental parser as a completion engine: given the partially generated sequence, the parser returns the set of tokens that could extend the prefix to a grammatically valid complete string. GCD also introduces input-dependent grammars, in which the grammar itself is derived from the input --- for example, a grammar for entity disambiguation that constrains the output to the candidate entities associated with the specific mention in the input text. This is a meaningful extension because it allows the constraint to encode not only structural requirements but also input-specific validity conditions.
+
+\section{KG-Constrained Decoding: State of the Art and Gaps}
+\label{sec:kg-constrained-decoding}
+
+Two recent works apply constrained decoding directly to KG reasoning and constitute the primary baselines and intellectual predecessors of this work.
+
+\subsection{Graph-Constrained Reasoning (GCR)}
+
+\citet{luo2024gcr} introduce graph-constrained reasoning (GCR), the most direct antecedent of the present work. GCR converts the KG into a trie --- a prefix tree over tokenised path strings --- called the KG-Trie. Given a question $q$ and its associated entities $E^i$, the KG-Trie $\mathcal{C}^G$ is constructed by retrieving all reasoning paths within $L$ hops of $E^i$ via breadth-first search, formatting each path as a natural language string, tokenising it, and inserting it into the trie. During generation, the KG-Trie acts as the constraint oracle: at each step, the valid token set $W_{\text{val}}$ is the set of tokens that form a valid prefix of some path in $\mathcal{C}^G$. Because every reachable leaf in the trie corresponds to a path that exists in $G$, GCR achieves 100\% structural faithfulness --- every generated reasoning path is guaranteed to be a real KG path.
+
+GCR's architecture has three components: KG-Trie construction, graph-constrained decoding using a fine-tuned KG-specialised LLM, and a graph inductive reasoning stage that uses a more powerful general LLM to aggregate multiple generated paths and derive a final answer. Experiments on WebQSP and CWQ demonstrate state-of-the-art performance with zero hallucination. However, GCR's KG-Trie is entirely static: it is computed once before generation begins and remains unchanged throughout. The trie contains all paths within $L$ hops regardless of which paths are semantically relevant to the question. For a question about a single narrow fact, the trie may contain thousands of structurally valid but thematically irrelevant paths, and the LLM must discriminate between them using its own parametric knowledge --- precisely the hallucination-prone mechanism that constrained decoding is meant to eliminate.
+
+\subsection{Decoding on Graphs (DoG)}
+
+\citet{li2024dog} introduce Decoding on Graphs (DoG), which defines the concept of a \emph{well-formed chain}: a sequence of fact triplets starting from the question entity such that every triplet exists in the KG and every triplet's head or tail has been visited in a previous step or is a query entity. A well-formed chain is faithful by construction, and DoG's graph-aware constrained decoding enforces this property via a dynamically updated trie.
+
+DoG's dynamic element is its query-centric subgraph $G^i$, which evolves as generation proceeds. At initialisation, $G^i$ contains all triplets incident to the query entity. After each generated triplet $t_i = (e_i, r_i, e'_i)$, all triplets in $G$ that share either $e_i$ or $e'_i$ as head or tail are added to $G^i$. The trie for the next step is built from the updated $G^i$. This expansion guarantees that the constraint set is always consistent with the well-formedness property.
+
+DoG is a significant advance over GCR in that it introduces step-wise trie adaptation. However, its expansion rule is purely topological: every triplet neighbouring any visited entity is admitted, regardless of semantic relevance to the question. For a multi-hop question about a specific attribute chain, DoG's expanding subgraph includes all relations of all visited entities --- their dates, locations, memberships, and other attributes unrelated to the reasoning target. The LLM must again discriminate among valid paths without structural guidance. Furthermore, DoG's trie is rebuilt from scratch at each step, preventing reuse of key-value cache and producing measurably slower inference than GCR.
+
+\subsection{Identified Gaps}
+
+The foregoing review identifies four concrete limitations in the state of the art that motivate the design of DCA-Trie:
+
+\textbf{Gap 1 --- Static constraint structures (GCR).} GCR's KG-Trie is computed prior to generation and never modified. The constraint set at generation step $t = 100$ is identical to the constraint set at $t = 1$, despite the fact that the reasoning has committed to specific entities and relations whose neighbourhood is far smaller than the full $L$-hop subgraph. A trie that does not shrink as reasoning progresses preserves unnecessary ambiguity throughout the generation.
+
+\textbf{Gap 2 --- Topological expansion without semantic filtering (DoG).} DoG expands its subgraph by adding all KG neighbours of any visited entity. This topological rule is correct but indiscriminate: a question about the national flower of a film location does not benefit from adding the film's cast, box office figures, or production company to the constraint set when the film's location entity is first visited. Semantic irrelevance in the constraint set forces the LLM to function as a retriever inside a constrained generator, reintroducing the hallucination risk that constraints are meant to preclude.
+
+\textbf{Gap 3 --- The permissiveness problem (both methods).} No existing method distinguishes between the \emph{necessary condition} (the path exists in the KG) and the \emph{sufficient condition} for good reasoning (the path is relevant to the question's current reasoning state). Large valid-but-irrelevant trie regions force the LLM to discriminate using parametric knowledge, which is the soft hallucination pathway. This gap is structural and cannot be addressed by retrieval or prompting alone.
+
+\textbf{Gap 4 --- Absent feedback from generation state (both methods).} Neither GCR nor DoG conditions the constraint on what has already been generated. The partially generated reasoning chain $y_0, \dots, y_{t-1}$ encodes information about the semantic direction the LLM is taking. A truly context-aware constraint should narrow the valid set as this direction becomes clearer, not maintain a fixed or monotonically growing frontier.
+
+% Table at the end
+\begin{table}[t]
+    \centering
+    \caption{Comparison of constrained decoding approaches. $\checkmark$ = fully satisfied, $\times$ = not satisfied, Partial = satisfied under restricted conditions.}
+    \label{tab:constrained-comparison}
+    \begin{tabular}{lccccc}
+        \toprule
+        Property                & GCD          & Outlines     & DoG          & GCR          & DCA-Trie (Ours)       \\
+        \midrule
+        Structurally faithful   & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\checkmark$ & \textbf{$\checkmark$} \\
+        Semantically filtered   & $\times$     & $\times$     & $\times$     & $\times$     & \textbf{$\checkmark$} \\
+        Dynamically updated     & $\times$     & $\times$     & Partial      & $\times$     & \textbf{$\checkmark$} \\
+        Context-aware expansion & $\times$     & $\times$     & $\times$     & $\times$     & \textbf{$\checkmark$} \\
+        Training-free inference & $\checkmark$ & $\checkmark$ & $\checkmark$ & $\times$     & \textbf{$\checkmark$} \\
+        Scalable construction   & $\checkmark$ & $\checkmark$ & $\times$     & Partial      & \textbf{$\checkmark$} \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Problem Statement}
+
+Existing KG-constrained decoding frameworks, including GCR and DoG, construct their constraint oracles primarily as functions of the knowledge graph and the question entities, independent of the semantic direction of generation. This design guarantees structural faithfulness, but it does not adapt the valid token set to the question meaning or to the partially generated reasoning chain.
+
+Consequently, current methods conflate structural validity with contextual relevance. They are often too broad, because they admit many structurally valid but semantically irrelevant paths, and too rigid, because they do not narrow sufficiently as generation progresses. In multi-hop settings, where valid path counts grow rapidly with hop depth, this forces the LLM to perform semantic discrimination using parametric knowledge, partially reintroducing the hallucination risk constrained decoding is intended to suppress.
+
+This project addresses the following problem: current KG-constrained decoding frameworks do not condition the valid token constraint on question semantics or generation state, leaving the model responsible for selecting among valid-but-irrelevant paths at each step. The proposed DCA-Trie formulation upgrades the constraint from
+\begin{equation}
+    W_{\text{val}}(t) = f(G, E_q)
+\end{equation}
+to
+\begin{equation}
+    W_{\text{val}}(t) = f(G, E_q, q, y_{<t}),
+\end{equation}
+so that structural validity and contextual relevance are enforced jointly during decoding.
+
+\section{Aim and Objectives}
+
+This project aims to design, implement, and evaluate a Dynamic Context-Aware Trie (DCA-Trie) framework for KG-constrained LLM generation, where the valid token set at each decoding step is conditioned jointly on graph structure, question semantics, and partial generation, improving multi-hop KGQA accuracy while maintaining structural faithfulness.
+
+To achieve this aim, the following objectives are pursued:
+
+\begin{enumerate}[label=\roman*.]
+    \item Characterise the permissiveness problem in existing KG-constrained decoding by defining and measuring the Semantic Irrelevance Ratio (SIR) on WebQSP and CWQ, stratified by hop depth.
+    \item Design a semantic relevance scoring mechanism using pretrained sentence-transformer embeddings for filtering candidate KG paths by joint relevance to the question and partial generation.
+    \item Implement a static semantic filtering variant (DCA-Trie v1) applied during KG-Trie construction, reducing trie size while keeping false negatives on gold paths below 5\% on validation data.
+    \item Implement a step-wise dynamic expansion variant (DCA-Trie v2) that updates constraints after each committed triplet using relevance scoring conditioned on $q$ and $y_{<t}$.
+    \item Evaluate DCA-Trie v1 and v2 against GCR and unconstrained CoT baselines on WebQSP and CWQ using Hits@1, F1, structural faithfulness, SIR, and average trie size.
+\end{enumerate}
+
+\section{Tools and Facilities Used}
+
+\subsection{Software Tools}
+
+Table \ref{tab:software-tools} summarises the core software tools used in this project and the rationale for their selection.
+
+\begin{table}[t]
+    \centering
+    \small
+    \caption{Implemented software tools and rationale.}
+    \label{tab:software-tools}
+    \begin{tabular}{p{0.22\textwidth}p{0.33\textwidth}p{0.37\textwidth}}
+        \toprule
+        Tool & Use in project & Rationale \\
+        \midrule
+        Python + HuggingFace Transformers & Inference pipeline, checkpoint loading, and constrained decoding integration & Standard NLP stack with reliable tokenizer/model APIs and direct compatibility with released checkpoints. \\
+        GCR framework & Baseline implementation for KG-Trie construction and graph-constrained decoding & Open-source baseline with strong KGQA performance and verified structural faithfulness. \\
+        sentence-transformers (all-MiniLM-L6-v2) & Semantic relevance scoring for question-path matching & Lightweight pretrained encoder suitable for inference-time scoring without task-specific fine-tuning. \\
+        PyTorch & Runtime backend for model execution and custom decoding logic & Native integration with transformer tooling and flexibility for custom inference hooks. \\
+        Freebase + WebQSP/CWQ & KG source and benchmark datasets & Canonical KGQA resources that enable direct comparison with prior constrained-decoding work. \\
+        Google Colab Pro (A100) & GPU execution environment for beam-search experiments & Sufficient VRAM for Llama-class constrained decoding experiments with practical setup cost. \\
+        VS Code + Git/GitHub & Development and version control workflow & Team collaboration, experiment tracking, and reproducibility support. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Facilities}
+
+The following facilities were used during project execution:
+
+\begin{enumerate}[label=\roman*.]
+    \item University GPU resources and Google Colab Pro for constrained decoding and inference experiments.
+    \item University library systems and academic databases for literature review and citation verification.
+    \item University internet infrastructure for dataset access and checkpoint retrieval.
+    \item Shared GitHub repository infrastructure for version control and reproducibility.
+\end{enumerate}
+
+\section{Methods Used}
+
+The project employed the following methods:
+
+\begin{enumerate}[label=\roman*.]
+    \item Systematic literature review on constrained decoding, KGQA, retrieval-augmented generation, and LLM hallucination.
+    \item Formal gap analysis of GCR, DoG, grammar-constrained decoding, and efficient guided generation methods.
+    \item Formal specification of DCA-Trie, including SIR, semantic filtering, and dynamic expansion rules.
+    \item Reproduction of the GCR baseline on WebQSP to establish a verified reference implementation.
+    \item Implementation of DCA-Trie v1 and v2 as extensions to the baseline inference pipeline.
+    \item Quantitative evaluation on WebQSP and CWQ using Hits@1, F1, faithfulness, SIR, and average trie size, with hop-stratified analysis.
+    \item Ablation studies on relevance threshold, encoder choice, and beam size.
+    \item Qualitative error analysis of false-negative filtering cases and other failure modes.
+\end{enumerate}
+
+\section{Scope of Work}
+
+This dissertation develops and evaluates DCA-Trie for multi-hop KGQA on Freebase-grounded benchmarks (WebQSP and CWQ), using GCR's released Llama-based checkpoint and inference-time semantic filtering without additional model fine-tuning.
+
+The work is bounded to the KGQA setting and does not evaluate transfer to other knowledge graphs or non-KG tasks. Production-scale deployment, online latency optimisation, and enterprise-specific graph integration are also outside scope. Faithfulness is assessed empirically through structural validation and answer-path preservation rather than through formal proof of all dynamic-pruning properties.
+
+\section{Organization of Work}
+
+This thesis is organised as follows:
+
+\begin{description}
+    \item[Chapter 2] Presents the literature review and identifies the gaps motivating DCA-Trie.
+    \item[Chapter 3] Describes the methodology, including formal definitions and system design.
+    \item[Chapter 4] Reports experimental results and analysis across WebQSP and CWQ.
+    \item[Chapter 5] Concludes the thesis with contributions, limitations, and future directions.
+\end{description}

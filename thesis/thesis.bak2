@@ -1,0 +1,172 @@
+% =============================================================================
+% THESIS TEMPLATE - UMaT Standard
+% =============================================================================
+% University of Mines and Technology (UMaT), Tarkwa
+% BSc in Computer Science and Engineering
+% =============================================================================
+
+\documentclass[oneside,12pt]{Latex/Classes/PhDthesisPSnPDF}
+
+% =============================================================================
+% PACKAGES
+% =============================================================================
+\usepackage{acro}                % Acronyms
+\usepackage{nicefrac}            % Nice fractions
+\usepackage{amsmath}             % Math operators and environments
+\usepackage{times}               % Font: Times New Roman (UMaT standard)
+\usepackage{multicol}            % Multi-column layouts
+\usepackage{float}               % Float positioning
+\usepackage{listings}            % Code listings
+\usepackage{booktabs}            % Professional table rules
+\usepackage{appendix}            % Appendices
+\usepackage{color,xcolor,soul}   % Colors and highlighting
+\usepackage{enumitem}            % Custom lists
+
+% =============================================================================
+% FORMATTING
+% =============================================================================
+% Section spacing
+\titlespacing\section{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+\titlespacing\subsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+\titlespacing\subsection{0pt}{12pt plus 4pt minus 2pt}{0pt plus 2pt minus 2pt}
+
+% Section formatting
+\titleformat*{\section}{\normalfont\fontsize{12}{19}\bfseries}
+\titleformat*{\subsection}{\normalfont\fontsize{12}{17}}
+\titleformat*{\subsubsection}{\normalfont\fontsize{12}{17}}
+
+% Paragraph formatting
+\setlength{\parskip}{0.8em}
+
+% Prevent overflow warnings
+\tolerance=1
+\emergencystretch=\maxdimen
+\hyphenpenalty=10000
+\hbadness=10000
+
+\setcitestyle{authoryear, round, longnamesfirst}
+
+% =============================================================================
+% MARGIN SETTINGS - UMaT Thesis Guide
+% =============================================================================
+\geometry{
+    paper=a4paper,
+    inner=0.0cm,
+    outer=0.0cm,
+    top=2.54cm,
+    bottom=2.54cm,
+    right=2.54cm,
+    left=3.05cm  % Left margin for binding (UMaT: 3.05cm)
+}
+
+% =============================================================================
+% PDF METADATA
+% =============================================================================
+\ifpdf
+    \pdfinfo {
+        /Title (Dynamic Context-Aware Tries for Knowledge Graph-Constrained Large Language Model Generation)
+        /Author (Bernard Kirk Adjanor Katamanso; Amonor Erica; Joseph Osei Nyarko; Jessica Afua Etornam Nsafoah)
+        /Subject (Computer Science and Engineering)
+        /Keywords (keyword1, keyword2, keyword3)
+    }
+    \pdfcatalog { /PageMode (/UseOutlines) /OpenAction (fitbh) }
+\fi
+
+% =============================================================================
+% THESIS INFORMATION - UMaT
+% =============================================================================
+\title{Dynamic Context-Aware Tries for Knowledge Graph-Constrained Large Language Model Generation}
+\author{Bernard Kirk Adjanor Katamanso \textemdash{} FOE.41.008.088.22\\Amonor Erica \textemdash{} FOE.41.008.113.22\\Joseph Osei Nyarko \textemdash{} FOE.41.008.107.22\\Jessica Afua Etornam Nsafoah \textemdash{} FOE.41.008.030.22}
+\collegeordept{DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING}
+\university{UNIVERSITY OF MINES AND TECHNOLOGY}
+\faculty{FACULTY OF COMPUTING AND MATHEMATICAL SCIENCES}
+\crest{\includegraphics[width=4cm]{logo}}
+\degree{BACHELOR OF SCIENCE IN COMPUTER SCIENCE AND ENGINEERING}
+\degreedate{May, 2024}
+\location{Tarkwa}
+
+% =============================================================================
+% DOCUMENT
+% =============================================================================
+\begin{document}
+
+% Line spacing: 1.5 (UMaT standard)
+\onehalfspacing
+
+% -----------------------------------------------------------------------------
+% FRONT MATTER (Roman numerals)
+% -----------------------------------------------------------------------------
+\pagestyle{plain}
+\frontmatter
+
+% -----------------------------------------------------------------------------
+% TITLE PAGE
+% -----------------------------------------------------------------------------
+\maketitl
+
+% -----------------------------------------------------------------------------
+% FRONT MATTER
+% -----------------------------------------------------------------------------
+% Declaration (optional)
+\include{backmatter/declaration}
+
+% Abstract
+\include{frontmatter/abstract}
+
+% Dedication
+\include{frontmatter/dedication}
+
+% Acknowledgements
+\include{frontmatter/acknowledgement}
+
+% -----------------------------------------------------------------------------
+% TABLE OF CONTENTS
+% -----------------------------------------------------------------------------
+\begingroup
+\tableofcontents
+\endgroup
+
+% List of Figures
+\begingroup
+\listoffigures
+\endgroup
+
+% List of Tables
+\begingroup
+\listoftables
+\endgroup
+
+% Glossary (optional)
+%\include{frontmatter/glossary}
+
+% Paragraph formatting: triple space between paragraphs (UMaT standard)
+\setlength{\parskip}{1.5em}
+
+% -----------------------------------------------------------------------------
+% MAIN MATTER (Arabic numerals)
+% -----------------------------------------------------------------------------
+\mainmatter
+
+% Chapters - edit or remove as needed
+\include{introduction/introduction}
+\include{literature_review/literature_review}
+\include{methodology/methodology}
+\include{results_discussion/results_discussion}
+\include{conclusion/conclusion}
+
+% -----------------------------------------------------------------------------
+% BACK MATTER
+% -----------------------------------------------------------------------------
+
+% Bibliography
+\begingroup
+\bibliographystyle{agsm}
+\bibliography{backmatter/references}
+\endgroup
+
+% Appendices (optional)
+%\appendix
+%\chapter{Appendix A}
+%\chapter{Appendix B}
+
+\end{document}
