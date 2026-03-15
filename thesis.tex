@@ -1,0 +1,65 @@
+% thesis.tex — Root document for the UMaT Project Report
+%
+% Build:   latexmk -pdf thesis.tex    (or use the VS Code task: Build PDF)
+% Clean:   latexmk -C
+%
+% Structure:
+%   preamble.tex          — packages, formatting, thesis metadata
+%   FrontMatter/          — title page, declaration, abstract, etc.
+%   Chapters/Chapter*.tex — body chapters
+%   Appendices/           — appendices (uncomment below when ready)
+%   references.bib        — bibliography database
+
+\documentclass[
+	12pt,             % Base font size
+	english,          % Language (affects hyphenation and babel)
+	onehalfspacing,   % 1.5× line spacing throughout
+	liststotoc,       % Include LoF and LoT in the ToC
+	oneside,          % Single-sided layout (no alternating margins)
+	parskip,          % Vertical space between paragraphs instead of indentation
+	headsepline,      % Horizontal rule below the running header
+]{TemplateClassFile}
+
+\input{preamble}   % Load all packages, formatting, and thesis metadata
+
+\begin{document}
+
+%=== Front Matter ================================================================
+% Roman page numbering (i, ii, iii …)
+
+\frontmatter
+\pagestyle{plain}
+
+\include{FrontMatter/titlepage}
+\include{FrontMatter/declaration}
+\include{FrontMatter/abstract}
+\include{FrontMatter/dedication}
+\include{FrontMatter/acknowledgements}
+\include{FrontMatter/lists}     % ToC, LoF, LoT, Abbreviations
+
+%=== Main Chapters ===============================================================
+% Arabic page numbering (1, 2, 3 …)
+
+\mainmatter
+\pagestyle{thesis}
+
+\include{Chapters/Chapter1}
+\include{Chapters/Chapter2}
+\include{Chapters/Chapter3}
+\include{Chapters/Chapter4}
+\include{Chapters/Chapter5}
+
+%=== Appendices ==================================================================
+% Uncomment each line when the appendix file is ready.
+
+\appendix
+%\include{Appendices/AppendixA}
+%\include{Appendices/AppendixB}
+
+%=== References ==================================================================
+
+\addcontentsline{toc}{chapter}{REFERENCES}
+\renewcommand{\bibname}{\large\vspace{15pt} References}
+\printbibliography
+
+\end{document}

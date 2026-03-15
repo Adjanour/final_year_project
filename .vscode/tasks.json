@@ -1,0 +1,27 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build PDF (latexmk)",
+			"type": "shell",
+			"command": "latexmk",
+			"args": [
+				"-pdf",
+				"thesis.tex"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Clean + Build PDF (latexmk)",
+			"type": "shell",
+			"command": "bash",
+			"args": [
+				"-lc",
+				"latexmk -C && latexmk -pdf thesis.tex"
+			],
+			"isBackground": false,
+			"group": "build"
+		}
+	]
+}

@@ -1,0 +1,152 @@
+% preamble.tex — All packages, formatting configuration, and thesis metadata.
+% Loaded by main.tex via \input{preamble} before \begin{document}.
+
+%=== Page Layout =================================================================
+
+\usepackage[a4paper, top=1in, bottom=1in, left=1.2in, right=1in, head=21.75pt]{geometry}
+
+%=== Font & Encoding =============================================================
+
+\usepackage[utf8]{inputenc}   % Accept UTF-8 source characters
+\usepackage[T1]{fontenc}      % Use 8-bit output encoding (proper hyphenation for accented chars)
+\usepackage{times}            % Times New Roman font
+
+%=== Abstract Fix ================================================================
+% The base class leaves a trailing \null after the abstract env, creating an extra
+% blank page. This patch removes it.
+
+\usepackage{etoolbox}
+\patchcmd{\endabstract}{\null}{}{}{}
+
+%=== Bibliography ================================================================
+
+\usepackage[autostyle=true]{csquotes}  % Language-aware quoting, required by biblatex
+
+\usepackage[
+	backend=bibtex,
+	style=authoryear,
+	natbib=true,           % Enable \citep / \citet commands
+	uniquename=false,
+	maxcitenames=2,        % "Author et al." when > 2 authors in a citation
+	maxbibnames=99,        % Show all authors in the reference list
+	giveninits=true        % Use initials for given names
+]{biblatex}
+
+\DeclareNameAlias{sortname}{family-given}   % Sort bibliography by last name
+\addbibresource{references.bib}
+
+% Italicise "et al." in citations
+\usepackage{xpatch}
+\xpatchbibmacro{name:andothers}{%
+	\bibstring{andothers}%
+}{%
+	\bibstring[\emph]{andothers}%
+}{}{}
+
+\setlength{\bibhang}{2em}   % Hanging indent for bibliography entries
+
+%=== Chapter & Section Headings ==================================================
+
+\usepackage{titlesec, titletoc}
+
+% Chapter headings: "CHAPTER N" centred, title in small caps uppercase
+\titleformat{\chapter}[display]
+{\fontsize{14}{24}\bfseries\centering}{\MakeUppercase{\chaptertitlename}\ \thechapter}{0pt}{\normalsize\MakeUppercase}
+\titlespacing*{\chapter}{-10pt}{-45pt}{25pt}
+
+% Section / subsection / subsubsection formatting (all same size, differentiated by weight)
+\titleformat{\section}{\normalfont\normalsize\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\normalsize}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\itshape}{\thesubsubsection}{1em}{}
+
+%=== Tables & Figures ============================================================
+
+\usepackage{graphicx}
+\graphicspath{{Figures/}}    % Default image search path
+
+\usepackage{array}           % 'm' column specifier for fixed-width table columns
+\usepackage{tabularx}        % Auto-width columns
+\usepackage{float}           % [H] placement specifier
+\usepackage{longtable}       % Tables that span multiple pages
+\usepackage{subcaption}      % Sub-figures and sub-tables
+
+%=== Mathematics =================================================================
+
+\usepackage{amsmath}
+
+%=== Lists =======================================================================
+
+\usepackage{enumitem}        % \begin{enumerate}[label=(\roman*)] etc.
+
+%=== Typography & Misc ===========================================================
+
+\usepackage{microtype}       % Subtle spacing improvements (reduces overfull hboxes)
+\usepackage{hyphenat}        % Manual hyphenation control
+\usepackage{lipsum}          % Placeholder text — remove when chapters are complete
+
+%=== Table of Contents / List Formatting =========================================
+% Load order matters: tocloft must come before etoc.
+
+\usepackage{tocloft}
+\usepackage{etoc}
+\usepackage[nottoc,numbib,notlof,notlot]{tocbibind}  % Add bibliography to ToC; suppress duplicate LoF/LoT
+
+% Figure list: no indentation, dots between title and page number
+\setlength{\cftfignumwidth}{5em}
+\renewcommand{\cftfigfont}{\normalfont\centering}
+\renewcommand{\cftfigpagefont}{\hfill}
+\renewcommand{\cftfigleader}{\cftdotfill{\cftsecdotsep}}
+\renewcommand{\cftdotsep}{\cftnodots}
+\setlength{\cftfigindent}{0pt}
+\renewcommand{\cftfigaftersnumb}{\quad}
+
+% Table list: no indentation
+\renewcommand{\cfttabindent}{0pt}
+\setlength{\cftbeforetabskip}{6pt}
+\setlength{\cfttabnumwidth}{5em}
+
+% Show "CHAPTER X" prefix next to each chapter entry in the ToC
+\renewcommand{\cftchappresnum}{CHAPTER\space}
+\renewcommand{\cftchapnumwidth}{7em}
+
+% Flush floats to the top of float-only pages
+\makeatletter
+\setlength{\@fptop}{0pt}
+\makeatother
+
+%=== Convenience Commands ========================================================
+
+\newcommand{\keyword}[1]{\textbf{#1}}         % Highlight a key term
+\newcommand{\tabhead}[1]{\textbf{#1}}         % Bold table header cell
+\newcommand{\code}[1]{\texttt{#1}}            % Inline code / identifier
+\newcommand{\file}[1]{\texttt{\bfseries#1}}   % File name
+\newcommand{\option}[1]{\texttt{\itshape#1}}  % Command-line option
+\renewcommand{\indexname}{INDEX}
+
+%=== Line Spacing & Caption Style ================================================
+
+\linespread{1.5}
+
+\DeclareCaptionLabelSeparator{mysep}{\hspace{0.2cm}}
+\captionsetup{format=plain, font=normalfont, labelfont=bf, labelsep=mysep}
+
+%=== Thesis Metadata =============================================================
+% These values populate the title page, PDF properties, and other auto-filled
+% fields throughout the document. Print them anywhere with the command shown.
+
+\thesistitle{Thesis Title}                                     % \ttitle
+\author{Your name in full}                                     % \authorname
+\university{University of Mines and Technology, Tarkwa}        % \univname
+\department{Department of Computer Science and Engineering}    % \deptname
+\faculty{Faculty of Engineering}                               % \facname
+\degree{}                                                      % \degreename
+\examiner{}                                                    % \examname
+\addresses{}                                                   % \addressname
+\keywords{}                                                    % \keywordnames
+\group{}                                                       % \groupname
+
+% Embed metadata into the PDF file
+\AtBeginDocument{
+	\hypersetup{pdftitle=\ttitle}
+	\hypersetup{pdfauthor=\authorname}
+}

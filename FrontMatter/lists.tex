@@ -1,0 +1,54 @@
+% FrontMatter/lists.tex — Table of Contents, List of Figures, List of Tables, Abbreviations
+
+%--- Table of Contents ---
+\phantomsection
+\addcontentsline{toc}{chapter}{TABLE OF CONTENTS}
+\renewcommand{\contentsname}{\large\vspace{15pt} TABLE OF CONTENTS}
+\tableofcontents
+
+\pagebreak
+
+%--- List of Figures ---
+\newpage
+\makeatletter
+\chapter*{\large\bfseries\centering\vspace{15pt} LIST OF FIGURES}
+\addcontentsline{toc}{chapter}{LIST OF FIGURES}
+\phantomsection
+\vspace{-4ex}
+\textbf{Figure} \hspace{0.3\textwidth} \textbf{Title} \hspace{0.5\textwidth} \textbf{Page}
+\vspace{-6ex}
+\@starttoc{lof}
+\makeatother
+\clearpage
+
+%--- List of Tables ---
+\makeatletter
+\titlecontents{figure}
+[0pt]
+{}
+{\MakeUppercase{Fig.~\thecontentslabel\quad Title Page}\quad}
+{}
+{\titlerule*[0.5pc]{.}\contentspage}
+
+\chapter*{\large\bfseries\centering\vspace{15pt} LIST OF TABLES}
+\addcontentsline{toc}{chapter}{LIST OF TABLES}
+\phantomsection
+\vspace{-4ex}
+\textbf{Table} \hspace{0.3\textwidth} \textbf{Title} \hspace{0.5\textwidth} \textbf{Page}
+\vspace{-6ex}
+\@starttoc{lot}
+\makeatother
+\clearpage
+
+%--- List of Abbreviations ---
+% Add or remove rows as needed. Format: \textbf{ABBR} & \hspace{3cm}\qquad Full form \\
+\chapter*{\large\bfseries\centering\vspace{15pt} LIST OF ABBREVIATIONS}
+\addcontentsline{toc}{chapter}{LIST OF ABBREVIATIONS}
+\vspace{-4ex}
+\begin{abbreviations}{lr}
+
+    \textbf{DySiRT} & \hspace{3cm}\qquad Dynamic Scheduling in Real Time \\
+    \textbf{CPTA}   & \hspace{3cm}\qquad Congestion Estimation and Phase Time Adjustment \\
+    \textbf{YOLO}   & \hspace{3cm}\qquad You Only Look Once \\
+
+\end{abbreviations}

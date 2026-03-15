@@ -1,71 +1,92 @@
-# UMaT LaTeX Templates
+# UMaT Project Report — LaTeX Template
 
-Reusable University of Mines and Technology (UMaT), Tarkwa templates for:
+A structured LaTeX template for undergraduate project reports at the
+**University of Mines and Technology, Tarkwa (UMaT)**, based on the
+MastersDoctoralThesis v1.6 class (LaTeXTemplates.com), adapted for the
+Faculty of Computing and Mathematical Sciences format.
 
-- BSc thesis writing
-- BSc defense presentation slides
+---
 
-The templates are already set up with UMaT formatting (title page style, Harvard references, margins, and chapter structure), while keeping placeholders so you can add your own content quickly.
+## Prerequisites
 
-## Repository Layout
+| Tool | Install |
+|---|---|
+| TeX Live (full) | `sudo pacman -S texlive` · `sudo apt install texlive-full` |
+| latexmk | Included in TeX Live |
+| BibTeX | Included in TeX Live |
 
-```text
-.
-├── thesis/
-│   ├── thesis.tex                    # Main thesis template (use this)
-│   ├── example_thesis.tex            # Optional full example layout
-│   ├── frontmatter/                  # Abstract, dedication, acknowledgement, logo
-│   ├── introduction/                 # Chapter 1
-│   ├── literature_review/            # Chapter 2
-│   ├── methodology/                  # Chapter 3
-│   ├── results_discussion/           # Chapter 4
-│   ├── conclusion/                   # Chapter 5
-│   ├── backmatter/                   # References + declaration
-│   └── Latex/                        # Class/style/bib support files
-└── slides/
-    ├── defense_template.tex          # Main defense slide template
-    ├── references.bib                # Slide references file
-    └── figures/                      # Slide images and UMaT logo
-```
+VS Code extension (**optional but recommended**): [LaTeX Workshop](https://marketplace.visualstudio.com/items?itemName=James-Yu.latex-workshop)
+
+---
 
 ## Quick Start
 
-### Thesis
-
 ```bash
-cd thesis
+# One-time or full rebuild (cleans first)
+latexmk -C && latexmk -pdf thesis.tex
+
+# Incremental rebuild (only re-runs what changed)
 latexmk -pdf thesis.tex
 ```
 
-Edit these first:
+Output: **`thesis.pdf`**
 
-- `thesis/thesis.tex` (title, author, supervisor, degree, date)
-- `thesis/frontmatter/*.tex`
-- chapter files in `thesis/introduction/` to `thesis/conclusion/`
+Intermediate files (`.aux`, `.log`, `.bbl`, etc.) are **automatically deleted**
+after each successful build. See [docs/building.md](docs/building.md).
 
-### Slides
+---
 
-```bash
-cd slides
-pdflatex defense_template.tex
+## Project Structure
+
+```
+thesis.tex              Root driver — document class + \include list only
+preamble.tex            All packages, formatting, and thesis metadata
+references.bib          Bibliography database (BibTeX format)
+TemplateClassFile.cls   Document class (do not edit)
+
+FrontMatter/
+  titlepage.tex         Title page
+  declaration.tex       Authorship declaration (all group members)
+  abstract.tex          Abstract  ← replace \lipsum with real text
+  dedication.tex        Dedication
+  acknowledgements.tex  Acknowledgements
+  lists.tex             Table of Contents, LoF, LoT, Abbreviations
+
+Chapters/
+  Chapter1.tex          Introduction
+  Chapter2.tex          …
+  Chapter6.tex          Conclusion
+
+Appendices/
+  AppendixA.tex         Appendix A  (uncomment in thesis.tex when ready)
+  AppendixB.tex         Appendix B
+
+Figures/                Place all images here (.pdf, .png, .jpg)
+
+docs/                   Extended documentation
+  building.md           Build system, cleanup, troubleshooting
+  structure.md          File-by-file reference
+  customisation.md      How to add chapters, figures, citations, etc.
+
+.latexmkrc              latexmk configuration (auto-cleanup, PDF mode)
+.vscode/tasks.json      VS Code build tasks
 ```
 
-Edit:
+---
 
-- `slides/defense_template.tex` (title block + placeholders)
-- `slides/references.bib` (if using citations)
+## VS Code Tasks
 
-## Notes
+Open the Command Palette → **Tasks: Run Task**
 
-- Generated files (`*.aux`, `*.log`, `*.pdf`, etc.) are git-ignored.
-- Keep your logo in:
-  - `thesis/frontmatter/figures/logo.png`
-  - `slides/figures/umatlogo.png`
+| Task | Action |
+|---|---|
+| **Build PDF (latexmk)** | Incremental build → `thesis.pdf` |
+| **Clean + Build PDF (latexmk)** | Full clean rebuild → `thesis.pdf` |
 
-## Credits
+---
 
-This template is adapted from the work of **Enock Seth Nyamador**:
+## Further Reading
 
-[https://github.com/enockseth/umat](https://github.com/enockseth/umat)
-
-
+- [Building & the build system](docs/building.md)
+- [File structure reference](docs/structure.md)
+- [Customising the report](docs/customisation.md)
