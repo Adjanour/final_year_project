@@ -12,13 +12,19 @@ bottom of the file:
 ```latex
 \thesistitle{Your Full Project Title}          % printed with \ttitle
 \author{Your Name in Full}                     % printed with \authorname
+\supervisor{Dr Eric Affum}                     % printed with \supname
 \university{University of Mines and Technology, Tarkwa}  % \univname
 \department{Department of Computer Science and Engineering}  % \deptname
-\faculty{Faculty of Engineering}               % \facname
+\faculty{Faculty of Computing and Mathematical Sciences}   % \facname
 \degree{Bachelor of Science in Computer Science and Engineering}  % \degreename
+
+% Location and date on the title page
+\renewcommand{\submissionplace}{Tarkwa, Ghana}
+\renewcommand{\submissiondate}{May, 2026}
 ```
 
 These values are also embedded in the PDF metadata automatically.
+`FrontMatter/titlepage.tex` uses them directly — **do not edit the title page file itself**.
 
 ---
 

@@ -4,5 +4,49 @@
 \begin{abstract}
 	\addchaptertocentry{\abstractname}
 	\vspace{0.5cm}
-	\lipsum[2-3]   % TODO: replace with actual abstract
+
+	\addcontentsline{toc}{chapter}{ABSTRACT}
+	Large language models excel at multi-hop reasoning but remain prone to
+	hallucination: the generation of confident, fluent responses unsupported
+	by any verifiable source.
+	%
+	Knowledge graph-constrained decoding addresses this by restricting every
+	output token to a path verified in a curated knowledge graph (KG),
+	achieving structural faithfulness guarantees that retrieval-augmented
+	approaches cannot provide.
+	%
+	Yet leading frameworks --- Graph-Constrained Reasoning (GCR) and
+	Decoding on Graphs (DoG) --- construct their constraint oracles solely
+	from the graph structure and question entities, with no dependence on
+	the input question semantics or the evolving state of generation.
+	%
+	The result is the \emph{permissiveness problem}: at every decoding step,
+	the valid token set contains thousands of structurally correct but
+	contextually irrelevant paths, forcing the LLM to discriminate among
+	them using the very parametric knowledge that constrained decoding was
+	designed to suppress.
+	%
+	This dissertation proposes Dynamic Context-Aware Tries (DCA-Trie), a
+	framework that conditions the valid token set jointly on the knowledge
+	graph, the input question, and the partially generated reasoning chain,
+	formally upgrading the constraint oracle from $f(\mathcal{G}, E_q)$ to
+	$f(\mathcal{G}, E_q, q, y_{<t})$.
+	%
+	A pretrained sentence transformer serves as a semantic relevance scorer,
+	filtering candidate KG paths to those aligned with the current reasoning
+	direction; two variants are developed --- static filtering at trie
+	construction time (v1) and step-wise dynamic expansion conditioned on
+	the partial generation (v2).
+	%
+	Both variants are evaluated against GCR and an unconstrained
+	chain-of-thought baseline on WebQSP and ComplexWebQuestions over
+	Freebase, using Hits@1, F1, structural faithfulness, and the Semantic
+	Irrelevance Ratio (SIR) --- a new metric introduced here to quantify
+	constraint permissiveness independently of downstream accuracy.
+	%
+	% Results demonstrate that DCA-Trie reduces semantic irrelevance in the
+	% constraint set while preserving 100\% structural faithfulness, with the
+	% largest accuracy gains on multi-hop questions where constraint
+	% permissiveness is most acute.
+
 \end{abstract}

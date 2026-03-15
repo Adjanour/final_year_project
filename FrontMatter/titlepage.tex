@@ -1,30 +1,32 @@
-% FrontMatter/titlepage.tex — Title page content
-% Edit the placeholder text below to match your project details.
+% FrontMatter/titlepage.tex — Title page
+% All values are pulled from the metadata block in preamble.tex.
+% Edit \thesistitle, \author, \supervisor, \faculty, \department,
+% \submissionplace, and \submissiondate there — not here.
 
 \begin{titlepage}
 	\large
 	\begin{center}
 
-		{\scshape \univname\par}\vspace{1cm}
+		{\scshape \univname\par}\vspace{1cm}         % \university{} in preamble.tex
 
-		\textsc{ Faculty of Computing and Mathematical Sciences}\\[0.08cm]
+		\textsc{\facname}\\[0.08cm]                    % \faculty{} in preamble.tex
 
-		\textsc{ Department of  Computer Science and Engineering }\\[0.8cm]
+		\textsc{\deptname}\\[0.8cm]                    % \department{} in preamble.tex
 
 		\vspace{0.2cm}
-		\textsc{ \normalsize ENTITLED }\\[0.12cm]
-		\textsc{ \normalsize THE PROJECT TITLE IN FULL}\\[0.5cm]
+		\textsc{\normalsize ENTITLED}\\[0.12cm]
+		\textsc{\normalsize \ttitle}\\[0.5cm]          % \thesistitle{} in preamble.tex
 
-		\textsc{ \normalsize BY}\\[0.5cm]
-		\textsc{ YOUR NAME IN FULL}\\[1cm]
+		\textsc{\normalsize BY}\\[0.5cm]
+		\textsc{\authorname}\\[1cm]                    % \author{} in preamble.tex
 
-		\textsc{ \normalsize PROJECT SUPERVISOR}\\[1cm]
+		\textsc{\normalsize PROJECT SUPERVISOR}\\[1cm]
 
 		...............................................
 
-			{ DR ERIC AFFUM}\\[0.8cm]
+			{\supname}\\[0.8cm]                            % \supervisor{} in preamble.tex
 
-		{ \normalsize TARKWA GHANA\\ MONTH, YEAR}\\
+		{\normalsize \submissionplace\\ \submissiondate}\\  % \submissionplace / \submissiondate in preamble.tex
 
 	\end{center}
 \end{titlepage}
