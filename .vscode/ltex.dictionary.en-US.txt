@@ -3,3 +3,13 @@ DoG
 LLMs
 DCA-Trie
 Trie
+trie
+WebQSP
+ComplexWebQuestions
+KGQA
+HuggingFace
+Colab
+non-KGQA
+subgraphs
+logit
+FULFILMENT
