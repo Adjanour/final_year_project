@@ -5,8 +5,79 @@
 
 \label{Chapter2} % For referencing the chapter elsewhere, use \ref{Chapter1} 
 
-\section{FIRST SECTION TITLE GOES HERE}
-\lipsum[4-5]
+\section{Introduction}
 
-\subsection{Your subsection}
-\lipsum[4-5]
+\subsection{Hallucination in Large Language Models: Taxonomy, Structural Causes, and the Scaling Paradox}
+
+\subsubsection{Defining Hallucination: A Formal Taxonomy for Knowledge-Intensive Generation}
+
+\subsubsection{The Autoregressive Generation Process as the Structural Root of Hallucination}
+
+\subsubsection{The Scaling Paradox: Why Larger Models Do Not Solve Hallucination}
+
+\subsection{Chain-of-Thought Reasoning, Self-Consistency, and the Faithfulness Ceiling of Unconstrained Multi-Step Generation}
+
+\subsubsection{Chain-of-Thought Prompting: Eliciting Step-by-Step Reasoning from LLMs}
+
+\subsubsection{Self-Consistency and Tree-of-Thought: Improving Reliability Without Improving Faithfulness}
+
+\subsubsection{The Faithfulness Ceiling: Why Prompting Strategies Cannot Provide Structural Guarantees}
+
+\subsection{Knowledge Graph Question Answering: Structured Reasoning, Benchmark Design, and the Exponential Complexity of Multi-Hop Inference}
+
+\subsubsection{Knowledge Graphs as Structured Repositories of Verified Facts: Formal Definition and Properties}
+
+\subsubsection{WebQSP and ComplexWebQuestions: Benchmark Architecture, Evaluation Protocol, and Hop-Depth Stratification}
+
+\subsubsection{Multi-Hop Reasoning Complexity: Exponential Path Growth and the Permissiveness Problem Quantified}
+
+\subsection{Constrained Decoding for Faithful Text Generation: From Logit Masking to Knowledge Graph Oracles}
+
+\subsubsection{The Logit-Masking Paradigm: Hard Constraints on Autoregressive Vocabulary Selection}
+
+\subsubsection{Grammar-Constrained Decoding: GCD and Outlines as Foundational Format Constraints}
+
+\subsubsection{Graph-Constrained Reasoning (GCR): Structural Faithfulness via KG-Trie Oracles}
+
+\subsubsection{Decoding on Graphs (DoG): Step-Wise Topological Expansion and Its Persistent Limitations}
+
+\subsection{Beam Search Decoding and Prefix-Tree Constraint Integration: Mechanics, Efficiency, and the Step-Wise Constraint Problem}
+
+\subsubsection{Beam Search: Approximate Global Optimisation Over Autoregressive Sequences}
+
+\subsubsection{Prefix Trees as Constraint Oracles: Efficiency, Precomputation, and the Dynamic Rebuilding Cost}
+
+\subsubsection{The Step-Wise Constraint Problem: When the Constraint Must Know What Has Been Generated}
+
+\subsection{Retrieval-Augmented Generation: Architectural Variants, KG-Augmented Approaches, and the Hard Limit of Soft Grounding}
+
+\subsubsection{The RAG Paradigm: Dense Retrieval, Fusion-in-Decoder, and the Soft Grounding Ceiling}
+
+\subsubsection{KG-Augmented Retrieval: Structured Context Without Structural Guarantees}
+
+\subsubsection{Advanced RAG Variants: Self-RAG, FLARE, IRCoT, and GraphRAG}
+
+\subsubsection{The Formal Impossibility of Structural Faithfulness Under Soft Grounding}
+
+\subsection{Semantic Relevance Scoring with Sentence Transformer Embeddings: Training Objectives, Architecture Selection, and Application to Constraint Oracle Construction}
+
+\subsubsection{Sentence-BERT: Training Objective, Architecture, and the Semantic Similarity Property}
+
+\subsubsection{Encoder Architecture Selection: all-MiniLM-L6-v2 vs Alternatives}
+
+\subsubsection{Cosine Similarity as a Hard Constraint Signal: From Soft Retrieval to Binary Admission}
+
+\subsection{Related Work}
+
+\subsubsection{KG-Constrained Decoding: GCR, DoG, and the Unresolved Permissiveness Problem}
+
+\subsubsection{Hallucination Mitigation and KGQA: The Soft-to-Hard Spectrum}
+
+\subsubsection{Semantic Similarity for Graph Reasoning: The Retrieval-Constraint Boundary}
+
+\subsection{Synthesis of the Literature: Three Unresolved Gaps and the DCA-Trie Contribution}
+
+\subsubsection{Three Unresolved Gaps at the Intersection of Structural Faithfulness, Semantic Relevance, and Constraint Measurability}
+
+\subsubsection{DCA-Trie as the Unified Response: Gap-to-Objective Mapping}
+
