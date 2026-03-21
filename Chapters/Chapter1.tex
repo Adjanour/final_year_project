@@ -102,15 +102,15 @@ The following facilities were utilized in the execution of this project:
 
 \section{Methods Used}
 
-The project will employ the following methods:
+The project employs the following methods:
 
 \begin{enumerate}[label=\roman*.]
 	\item Systematic review and critical analysis of the academic literature on constrained decoding, knowledge graph question answering, hallucination in LLMs, and retrieval-augmented generation.
 	\item Formal gap analysis of the four foundational papers, GCR \citep{luo2024gcr}, DoG \citep{li2024dog}, GCD \citep{geng2023gcd}, and Outlines \citep{willard2023outlines}, to identify the specific limitations that motivate the DCA-Trie design, including the permissiveness problem and the absence of generation-state feedback in the constraint oracle.
 	\item Formal specification of the DCA-Trie framework, including definition of the Semantic Irrelevance Ratio metric, the relevance scoring mechanism using sentence transformer embeddings \citep{reimers2019sentence}, the static filtering procedure for v1, and the step-wise dynamic expansion rule for v2.
-	\item Reproduction of the GCR baseline on the WebQSP benchmark \citep{yih2016value} using GCR's publicly released Llama-3.1-8B checkpoint \citep{luo2024gcr} to establish a verified starting point within 1--2\% of published Hits@1.
+	\item Reproduction of the GCR baseline on the WebQSP benchmark using GCR's publicly released Llama-3.1-8B checkpoint to establish a verified starting point within 1--2\% of published Hits@1.
 	\item Implementation of DCA-Trie v1 and v2 as extensions to GCR's inference pipeline, with relevance threshold selected on a 100-question held-out validation subset of WebQSP to minimize false negative rate on gold answer paths.
-	\item Quantitative evaluation of all system configurations on WebQSP and CWQ \citep{talmor2018web} using Hits@1, F1, faithfulness rate, SIR, and average trie size per step, stratified by question hop depth following the evaluation protocol of \citet{lan2022survey}.
+	\item Quantitative evaluation of all system configurations on WebQSP and CWQ using Hits@1, F1, faithfulness rate, SIR, and average trie size per step, stratified by question hop depth following the evaluation protocol of \citet{lan2022survey}.
 	\item Ablation studies examining the sensitivity of DCA-Trie's performance to the relevance threshold $\tau$, the sentence encoder architecture, and beam size $k$, isolating the contribution of each mechanism to the overall result.
 	\item Qualitative error analysis identifying failure cases in which DCA-Trie's semantic filter erroneously excludes a gold answer path, supporting honest characterization of the framework's limitations and providing concrete directions for future work.
 \end{enumerate}
