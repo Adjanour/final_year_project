@@ -1369,24 +1369,25 @@ $f(\mathcal{G}, \mathcal{E}_q)$ to $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$
 and DoG, preserving their structural faithfulness guarantee while resolving the
 permissiveness problem neither addresses.
 
+
 \begin{table}[H]
     \centering
     \caption{Primary related work comparison.}
-    \label{tab:related}
+    \label{tab:related_work}
     \small
-    \resizebox{\textwidth}{!}{
+    \resizebox{\textwidth}{!}{%
         \begin{gridtabular}{l|c|c|c|c|c|c}
-            \gr{\textbf{Method}        & \textbf{Oracle}                         & \textbf{Faithfulness} &
-                \textbf{Sem.\ Cond.}   & \textbf{Dynamic}                        & \textbf{Precomp.}     &
-                \textbf{Hits@1}}
-            \gr{GCR \citep{luo2024gcr} & $f(\mathcal{G},\mathcal{E}_q)$
-                & 100\%                                   & No                    & No  & Yes     & 92.6}
-            \gr{DoG \citep{li2024dog}  & $f(\mathcal{G},\mathcal{E}_q,t)$
-                & 100\%                                   & No                    & Yes & No      & ---}
-            \gr{DCA-Trie v1 (proposed) & $f(\mathcal{G},\mathcal{E}_q,q)$
-                & 100\%                                   & Yes                   & No  & Yes     & TBD}
-            \gr{DCA-Trie v2 (proposed) & $f(\mathcal{G},\mathcal{E}_q,q,y_{<t})$
-            & 100\%                                   & Yes                   & Yes & Partial & TBD}
+            \gr{\textbf{Method} & \textbf{Oracle} & \textbf{Faithfulness} & \textbf{Sem.\ Cond.} & \textbf{Dynamic} & \textbf{Precomp.} & \textbf{Hits@1}}
+            \gr{
+                GCR \citep{luo2024gcr} & $f(\mathcal{G},\mathcal{E}_q)$ & 100\% & No & No & Yes & 92.6 }
+            \gr{
+                \textbf{DoG} \citep{li2024dog} & \textbf{$f(\mathcal{G},\mathcal{E}_q,t)$} & \textbf{100\%} & \textbf{No} & \textbf{Yes} & \textbf{No} & \textbf{90.99} (WebQSP) / \textbf{76.08} (CWQ) }
+            \gr{
+                RouterKGQA \citep{yuan2026routerkgqa} & Routing + filter & Partial & Yes (answer) & Yes & N/A & +0.49 vs GCR}
+            \gr{
+                \textbf{DCA-Trie v1} (proposed) & \textbf{$f(\mathcal{G},\mathcal{E}_q,q)$} & \textbf{100\%} & \textbf{Yes (token)} & \textbf{No} & \textbf{Yes} & \textbf{TBD}}
+            \gr{
+            \textbf{DCA-Trie v2} (proposed) & \textbf{$f(\mathcal{G},\mathcal{E}_q,q,y_{<t})$} & \textbf{100\%} & \textbf{Yes (token)} & \textbf{Yes} & \textbf{Partial} & \textbf{TBD}}
         \end{gridtabular}
     }
 \end{table}
@@ -1413,28 +1414,44 @@ grammar or entity list, not of a knowledge graph with relational structure.
 DCA-Trie inherits the logit-masking mechanism from this line of work and extends
 it to semantically conditioned KG path constraints.
 
-\subsection{Semantic Similarity for Graph Reasoning: The Retrieval-Constraint
-    Boundary}
+\subsection{Semantic Similarity for Graph Reasoning: The Retrieval-Constraint Boundary}
 
-Several works apply semantic similarity signals in graph-based reasoning. Path
-retrieval for KGQA \citep{shi2021kgpath, saxena2022kgqa} uses semantic similarity
-to rank candidate paths for retrieval. Attention-guided graph traversal in DAGQA
-\citep{he2021multihop} uses attention weights to focus multi-hop reasoning.
-Semantic path reranking approaches select among candidate answers after
-generation. In every case, semantic similarity operates as a
-\textit{soft signal} that influences which paths the LLM sees or which answer is
-selected after generation; it does not apply semantic similarity as a hard
-binary admission criterion that determines which tokens the LLM is
+Several works apply semantic similarity signals in graph-based reasoning. Path retrieval for KGQA \citep{shi2021kgpath, saxena2022kgqa} uses semantic similarity to rank candidate paths for retrieval. Attention-guided graph traversal in DAGQA \citep{he2021multihop} uses attention weights to focus multi-hop reasoning.Semantic path reranking approaches select among candidate answers after generation. In every case, semantic similarity operates as a \textit{soft signal}  that influences which paths the LLM sees or which answer is selected after generation; it does not apply semantic similarity as a hard binary admission criterion that determines which tokens the LLM is
 \textit{permitted} to generate.
 
-This distinction between soft signals and hard constraints defines the exact novelty
-boundary of DCA-Trie. No prior work combines semantic relevance scoring with hard
-constraint oracle construction. Works that provide structural faithfulness (GCR,
-DoG) do not condition on semantics. Works that use semantic similarity (path
-retrieval, reranking) do not provide structural faithfulness. DCA-Trie is the
-first framework to achieve both simultaneously, and the Semantic Irrelevance
-Ratio introduced in Chapter~3 is the first metric designed to measure this
-property directly.
+This distinction between soft signals and hard constraints defines the exact novelty boundary of DCA-Trie. No prior work combines semantic relevance scoring with hard constraint oracle construction. Works that provide structural faithfulness (GCR,DoG) do not condition on semantics. Works that use semantic similarity (path retrieval, reranking) do
+not provide structural faithfulness. DCA-Trie is the first framework to achieve both simultaneously, and the Semantic Irrelevance Ratio introduced in Chapter~3 is the first metric designed to measure this property directly.
+
+\subsection{Concurrent and Subsequent Work: Positioning DCA-Trie}
+\label{sec:concurrent_work}
+
+The research landscape has evolved rapidly since the foundational works of GCR~\citep{luo2024gcr} and DoG~\citep{li2024dog}. Most notably, \textbf{RouterKGQA}~\citep{yuan2026routerkgqa} proposes a specialized--general model routing framework that achieves strong performance with minimal inference cost. RouterKGQA employs constraint-aware reasoning paths and uses SBERT (nomic-embed-text-v1) for semantic filtering during answer selection, achieving 3.57 F1 point improvements over GCR on WebQSP and CWQ while requiring only 1.15 LLM calls per question~\citep{yuan2026routerkgqa}.
+
+\subsubsection{Differentiation of DCA-Trie}
+
+While RouterKGQA and DCA-Trie both employ semantic relevance scoring, they operate at fundamentally different architectural levels:
+
+\begin{table}[H]
+    \centering
+    \caption{Architectural comparison of RouterKGQA and DCA-Trie.}
+    \label{tab:routerkgqa_comparison}
+    \small
+    \resizebox{\textwidth}{!}{%
+        \begin{gridtabular}{l|c|c}
+            \gr{\textbf{Aspect}        & \textbf{RouterKGQA}                           & \textbf{DCA-Trie}                            }\gr{
+
+                Intervention Point     & Answer filtering (post-generation)            & Token constraint (during generation)          }\gr{
+                Mechanism              & Routes between specialized and general models & Modifies the constraint oracle directly        }\gr{
+                Semantic Scoring       & Filters final candidate answers               & Filters valid token sets at each decoding step }\gr{
+                Faithfulness Guarantee & Probabilistic (repair when needed)            & Deterministic (hard constraint at every step)  }\gr{
+                Metric Innovation      & Efficiency (LLM calls)                        & Constraint quality (SIR)                       }
+        \end{gridtabular}
+    }
+\end{table}
+
+RouterKGQA's semantic filtering operates on complete reasoning paths after generation, whereas DCA-Trie's semantic scoring constrains the \emph{decoding process itself}--ensuring that the LLM never sees semantically irrelevant tokens during generation. This distinction is critical: DCA-Trie reduces the cognitive load on the LLM by narrowing the valid vocabulary at each step, while RouterKGQA relies on the LLM to generate paths then filters retrospectively.
+
+Furthermore, DCA-Trie introduces the \textbf{Semantic Irrelevance Ratio (SIR)}, the first metric to isolate and quantify constraint permissiveness independently of downstream generation accuracy. RouterKGQA does not provide a direct measure of how many structurally valid but semantically irrelevant paths enter its candidate set; DCA-Trie's SIR metric fills this evaluation gap.
 
 % -----------------------------------------------------------------------------
 \section{Synthesis of the Literature: Three Unresolved Gaps and the DCA-Trie
@@ -1442,10 +1459,7 @@ property directly.
 \label{sec:synthesis}
 % -----------------------------------------------------------------------------
 
-This section synthesises the findings of the literature review by formalising
-three distinct research gaps. Each limitation is then explicitly mapped to a
-proposed component of the DCA-Trie architecture and its corresponding project
-objective, establishing the foundation for the methodology detailed in Chapter~3.
+This section synthesizes the findings of the literature review by formalizing three distinct research gaps. Each limitation is then explicitly mapped to a proposed component of the DCA-Trie architecture and its corresponding project objective, establishing the foundation for the methodology detailed in Chapter~3.
 
 \subsection{Three Unresolved Gaps at the Intersection of Structural Faithfulness,
     Semantic Relevance, and Constraint Measurability}
@@ -1470,37 +1484,28 @@ set directly or to compare frameworks on this property \citep{luo2024gcr,
     \caption{Consolidated gap matrix for KG-constrained decoding frameworks.}
     \label{tab:gaps}
     \small
-    \resizebox{\textwidth}{!}{
-        \begin{gridtabular}{l|c|c|c|c|c}
-            \gr{\textbf{Framework}     & \textbf{Faithfulness} & \textbf{Sem.\ Cond.} &
-                \textbf{Dynamic}       & \textbf{Precomp.}     & \textbf{SIR}}
-            \gr{GCR \citep{luo2024gcr} & \checkmark            & No                   & No         & \checkmark & No}
-            \gr{DoG \citep{li2024dog}  & \checkmark            & No                   & \checkmark & No         & No}
-            \gr{DCA-Trie v1 (proposed) & \checkmark            & \checkmark           & No         & \checkmark & \checkmark}
-            \gr{DCA-Trie v2 (proposed) & \checkmark            & \checkmark           & \checkmark & Partial    & \checkmark}
-        \end{gridtabular}
-    }
+    \begin{threeparttable}
+        \resizebox{\textwidth}{!}{%
+            \begin{gridtabular}{l|c|c|c|c|c}
+                \gr{\textbf{Framework} & \textbf{Faithfulness} & \textbf{Sem.\ Cond.} & \textbf{Dynamic} & \textbf{Precomp.} & \textbf{SIR}}
+                \gr{GCR \citep{luo2024gcr} & \checkmark & No & No & \checkmark & No}
+                \gr{DoG \citep{li2024dog} & \checkmark & No & \checkmark & No & No}
+                \gr{RouterKGQA \citep{yuan2026routerkgqa} & $\sim$\tnote{a} & \checkmark (answer) & \checkmark & N/A & No}
+                \gr{DCA-Trie v1 (proposed) & \checkmark & \checkmark (token) & No & \checkmark & \checkmark}
+                \gr{DCA-Trie v2 (proposed) & \checkmark & \checkmark (token) & \checkmark & Partial & \checkmark}
+            \end{gridtabular}%
+        }
+        \begin{tablenotes}
+            \item[a] Probabilistic faithfulness via repair mechanism; not guaranteed.
+        \end{tablenotes}
+    \end{threeparttable}
 \end{table}
 
 \subsection{DCA-Trie as the Unified Response: Gap-to-Objective Mapping}
 
-Each gap maps directly to a DCA-Trie component and project objective.
-\textbf{Gap~1} is addressed by DCA-Trie's semantic relevance scorer applied as a
-hard admission criterion, formally upgrading the constraint oracle from
-$f(\mathcal{G}, \mathcal{E}_q)$ to $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$,
-targeting project Objectives~ii, iii, and~iv. \textbf{Gap~2} is addressed by the
-two-variant design: DCA-Trie v1 applies semantic filtering at trie construction
-time, preserving precomputation efficiency (Objective~iii); DCA-Trie v2 applies
-step-wise dynamic expansion with semantic filtering for maximum contextual
-responsiveness (Objective~iv). \textbf{Gap~3} is addressed by the Semantic
-Irrelevance Ratio (SIR), a new metric introduced in Chapter~3 that quantifies the
-proportion of the valid set consisting of semantically irrelevant paths
-(Objective~i).
+Each gap maps directly to a DCA-Trie component and project objective. \textbf{Gap~1} is addressed by DCA-Trie's semantic relevance scorer applied as a hard admission criterion, formally upgrading the constraint oracle from $f(\mathcal{G}, \mathcal{E}_q)$ to $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$, targeting project Objectives~ii, iii, and~iv. \textbf{Gap~2} is addressed by the two-variant design: DCA-Trie v1 applies semantic filtering at trie construction time, preserving precomputation efficiency (Objective~iii); DCA-Trie v2 applies step-wise dynamic expansion with semantic filtering for maximum contextual responsiveness (Objective~iv). \textbf{Gap~3} is addressed by the Semantic Irrelevance Ratio (SIR), a new metric introduced in Chapter~3 that quantifies the proportion of the valid set consisting of semantically irrelevant paths (Objective~i).
 
-DCA-Trie is the first constrained decoding framework to simultaneously address
-all three gaps, providing structural faithfulness, semantic relevance
-conditioning, and a dedicated permissiveness metric. These constitute the three
-novel contributions of this dissertation.
+DCA-Trie is the first constrained decoding framework to simultaneously address all three gaps, providing structural faithfulness, semantic relevance conditioning, and a dedicated permissiveness metric. RouterKGQA addresses efficiency through routing but does not provide deterministic faithfulness guarantees or constraint-level evaluation; DCA-Trie fills these critical gaps. These constitute the three novel contributions of this dissertation.
 
 \begin{table}[H]
     \centering
