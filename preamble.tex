@@ -1,4 +1,4 @@
-% preamble.tex — All packages, formatting configuration, and thesis metadata.
+% preamble.tex - All packages, formatting configuration, and thesis metadata.
 % Loaded by main.tex via \input{preamble} before \begin{document}.
 
 %=== Page Layout =================================================================
@@ -23,13 +23,13 @@
 \usepackage[autostyle=true]{csquotes}  % Language-aware quoting, required by biblatex
 
 \usepackage[
-	backend=bibtex,
-	style=authoryear,
-	natbib=true,           % Enable \citep / \citet commands
-	uniquename=false,
-	maxcitenames=2,        % "Author et al." when > 2 authors in a citation
-	maxbibnames=99,        % Show all authors in the reference list
-	giveninits=true        % Use initials for given names
+    backend=bibtex,
+    style=authoryear,
+    natbib=true,           % Enable \citep / \citet commands
+    uniquename=false,
+    maxcitenames=2,        % "Author et al." when > 2 authors in a citation
+    maxbibnames=99,        % Show all authors in the reference list
+    giveninits=true        % Use initials for given names
 ]{biblatex}
 
 \DeclareNameAlias{sortname}{family-given}   % Sort bibliography by last name
@@ -38,9 +38,9 @@
 % Italicise "et al." in citations
 \usepackage{xpatch}
 \xpatchbibmacro{name:andothers}{%
-	\bibstring{andothers}%
+    \bibstring{andothers}%
 }{%
-	\bibstring[\emph]{andothers}%
+    \bibstring[\emph]{andothers}%
 }{}{}
 
 \setlength{\bibhang}{2em}   % Hanging indent for bibliography entries
@@ -63,16 +63,26 @@
 
 \usepackage{graphicx}
 \graphicspath{{Figures/}}    % Default image search path
+\usepackage{colortbl}        % Table row coloring (\rowcolor)
 
 \usepackage{array}           % 'm' column specifier for fixed-width table columns
+\usepackage{tikz}            % TikZ vector graphics
 \usepackage{tabularx}        % Auto-width columns
 \usepackage{float}           % [H] placement specifier
 \usepackage{longtable}       % Tables that span multiple pages
 \usepackage{subcaption}      % Sub-figures and sub-tables
+\usepackage{algorithm}       % Algorithm float environment
+\usepackage{algpseudocode}   % Algorithmic pseudocode commands
+
+% Bordered table helpers (full row/column lines)
+\newenvironment{gridtabular}[1]{\begin{tabular}{|#1|}\hline}{\end{tabular}}
+\newcommand{\gr}[1]{#1\\\hline}
 
 %=== Mathematics =================================================================
 
 \usepackage{amsmath}
+\usepackage{amssymb}
+\DeclareMathOperator*{\argmax}{arg\,max}
 
 %=== Lists =======================================================================
 
@@ -82,7 +92,7 @@
 
 \usepackage{microtype}       % Subtle spacing improvements (reduces overfull hboxes)
 \usepackage{hyphenat}        % Manual hyphenation control
-\usepackage{lipsum}          % Placeholder text — remove when chapters are complete
+\usepackage{lipsum}          % Placeholder text - remove when chapters are complete
 
 %=== Table of Contents / List Formatting =========================================
 % Load order matters: tocloft must come before etoc.
@@ -152,6 +162,6 @@
 
 % Embed metadata into the PDF file
 \AtBeginDocument{
-	\hypersetup{pdftitle=\ttitle}
-	\hypersetup{pdfauthor=\authorname}
+    \hypersetup{pdftitle=\ttitle}
+    \hypersetup{pdfauthor=\authorname}
 }

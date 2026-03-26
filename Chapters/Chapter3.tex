@@ -5,79 +5,644 @@
 \chapter{METHODOLOGY} % Main chapter title
 
 \label{Chapter3} % For referencing the chapter elsewhere, use \ref{Chapter1} 
+\section{Introduction}
+\label{sec:ch3intro}
 
-\section{FIRST SECTION TITLE GOES HERE}
-\lipsum[4-5]
+This chapter presents the complete methodology of the DCA-Trie project, covering
+formal problem specification, framework design, implementation strategy, and
+evaluation protocol. The chapter is organised as follows.
+Section~\ref{sec:ch3problem} restates the research problem in precise formal
+terms and derives three conditions that any solution must satisfy.
+Section~\ref{sec:ch3rq} states the research questions that structure the
+experimental evaluation. Section~\ref{sec:ch3sir} introduces the Semantic
+Irrelevance Ratio, the novel metric defined in this work to quantify constraint
+permissiveness independently of downstream answer accuracy.
+Section~\ref{sec:ch3scorer} specifies the semantic relevance scoring mechanism
+that forms the core of DCA-Trie. Sections~\ref{sec:ch3v1} and~\ref{sec:ch3v2}
+present the design and implementation of DCA-Trie v1 and v2 respectively,
+including their algorithms, complexity analysis, and faithfulness guarantees.
+Section~\ref{sec:ch3baseline} describes the baseline systems against which
+DCA-Trie is evaluated. Section~\ref{sec:ch3eval} defines the evaluation
+protocol, metrics, datasets, and experimental configuration.
+Section~\ref{sec:ch3ablation} specifies the ablation and sensitivity analyses
+that isolate the contribution of individual design choices.
+Finally, Section~\ref{sec:ch3limitations} defines the scope boundaries and
+anticipated limitations that inform the honest characterisation of results in
+Chapter~4.
 
-\subsection{Your subsection}
-\lipsum[4-5]
+% -----------------------------------------------------------------------------
+\section{Formal Problem Specification}
+\label{sec:ch3problem}
+% -----------------------------------------------------------------------------
 
+\subsection{Restating the Core Limitation of Existing Frameworks}
 
+As established in Chapter~2, both GCR \citep{luo2024gcr} and DoG
+\citep{li2024dog} construct their constraint oracles as functions
+$f(\mathcal{G}, \mathcal{E}_q)$ of the knowledge graph $\mathcal{G}$ and the
+question entity set $\mathcal{E}_q$, evaluated once before generation begins or
+expanded according to topological adjacency alone. The formal consequence is
+that the valid token set $\mathcal{W}_{\text{val}}(t)$ at decoding step $t$
+satisfies:
+\begin{equation}
+  \mathcal{W}_{\text{val}}^{\text{GCR}}(t) = f(\mathcal{G},\, \mathcal{E}_q)
+  \quad \forall\, t
+  \label{eq:gcr_oracle}
+\end{equation}
+This expression is independent of the input question $q$ and the partial
+generation $y_{<t}$. As a result, all structurally reachable KG paths are
+present in the valid set at every decoding step, regardless of how many of them
+are relevant to the question being answered. For a three-hop question over
+Freebase, the upper bound on this set is
+$|\mathcal{E}_q| \times d^3 \approx 8{,}000$ paths (from
+Equation~\ref{eq:pathgrowth} in Chapter~2), of which exactly one is the gold
+answer path.
 
+This design conflates two properties that should be kept distinct.
+\textit{Structural validity} requires that every token admitted at step $t$
+correspond to a valid KG path prefix — a property all existing frameworks
+satisfy. \textit{Contextual relevance} requires that the admitted set reflect the
+semantic focus of the reasoning direction at step $t$ — a property no existing
+framework satisfies. The gap between these two properties is what this project
+terms the \textit{permissiveness problem}.
 
+\subsection{The Upgraded Oracle Specification}
 
+DCA-Trie addresses the permissiveness problem by upgrading the constraint oracle
+to a function that incorporates both the question semantics and the partial
+generation:
+\begin{equation}
+  \mathcal{W}_{\text{val}}^{\text{DCA}}(t) = f(\mathcal{G},\, \mathcal{E}_q,\,
+  q,\, y_{<t})
+  \label{eq:dca_oracle}
+\end{equation}
+where $q$ is the natural language question and $y_{<t} = (y_1, \ldots, y_{t-1})$
+is the token sequence generated so far. The upgraded oracle must simultaneously
+satisfy the following three conditions, which are directly traceable to the
+project objectives stated in Chapter~1:
 
+\begin{enumerate}
+  \item \textbf{Structural faithfulness (Condition~F):} Every token
+    $v \in \mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ at every step $t$
+    corresponds to a valid prefix of some path $p \in \mathcal{G}$. This ensures
+    that DCA-Trie's structural faithfulness rate equals 100\%, matching GCR and
+    DoG, and that no non-KG tokens can appear in the output.
 
+  \item \textbf{Semantic relevance reduction (Condition~R):} The Semantic
+    Irrelevance Ratio of $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ is strictly
+    less than that of $\mathcal{W}_{\text{val}}^{\text{GCR}}(t)$ on average
+    across the evaluation set. Formally, letting SIR denote the metric defined
+    in Section~\ref{sec:ch3sir}:
+    \begin{equation}
+      \overline{\text{SIR}}\!\left(\mathcal{W}^{\text{DCA}}\right) <
+      \overline{\text{SIR}}\!\left(\mathcal{W}^{\text{GCR}}\right)
+      \label{eq:sir_condition}
+    \end{equation}
 
+  \item \textbf{Recall preservation (Condition~P):} The gold answer path is
+    never erroneously excluded by the semantic filter. More precisely, the false
+    negative rate on the WebQSP validation set is held below 5\%:
+    \begin{equation}
+      \text{FNR} = \frac{|\{q \in \mathcal{Q}_{\text{val}} :
+        p^*_q \notin \mathcal{W}_{\text{val}}^{\text{DCA}}(t)\}|}{|\mathcal{Q}_{\text{val}}|}
+      < 0.05
+      \label{eq:fnr}
+    \end{equation}
+    where $p^*_q$ is the gold answer path for question $q$ and
+    $\mathcal{Q}_{\text{val}}$ is the 100-question held-out validation subset of
+    WebQSP.
+\end{enumerate}
 
+These three conditions are not merely desiderata — they are measurable
+requirements verified quantitatively in Chapter~4. Condition~F is measured by
+structural faithfulness rate. Condition~R is measured by SIR. Condition~P is
+measured by false negative rate on the validation subset. Together they
+constitute the formal specification of the DCA-Trie framework.
 
+% -----------------------------------------------------------------------------
+\section{Research Questions}
+\label{sec:ch3rq}
+% -----------------------------------------------------------------------------
 
+The experimental evaluation in Chapter~4 is structured around four research
+questions that correspond directly to the project objectives:
 
+\textbf{RQ1 (Permissiveness characterisation):} How severe is the permissiveness
+problem in GCR's static KG-Trie across WebQSP and CWQ, and how does SIR vary
+with question hop depth? This question operationalises Objective~i and provides
+the quantitative baseline against which DCA-Trie's improvements are measured.
 
+\textbf{RQ2 (Answer accuracy):} Do DCA-Trie v1 and v2 match or exceed GCR's
+Hits@1 and F1 on WebQSP and CWQ? This question assesses whether semantic
+filtering improves downstream answer quality or degrades it by excluding valid
+paths.
 
+\textbf{RQ3 (Structural faithfulness):} Do DCA-Trie v1 and v2 maintain 100\%
+structural faithfulness? This question verifies Condition~F and confirms that
+the semantic scorer introduces no KG-invalid tokens into the output.
 
+\textbf{RQ4 (Semantic irrelevance reduction):} By how much do DCA-Trie v1 and v2
+reduce SIR relative to GCR, and does this reduction increase with hop depth as
+predicted by Equation~\eqref{eq:sir_condition}? This question operationalises
+Objective~ii and provides direct evidence of progress on the permissiveness
+problem.
 
+% -----------------------------------------------------------------------------
+\section{The Semantic Irrelevance Ratio: Definition and Measurement}
+\label{sec:ch3sir}
+% -----------------------------------------------------------------------------
 
+\subsection{Motivation}
 
+Existing evaluation metrics for KG-constrained decoding — Hits@1, F1, and
+structural faithfulness rate — all measure downstream outcomes: whether the
+correct answer was produced and whether the output is structurally valid. None
+of them directly measures the quality of the constraint itself. A framework could
+score perfectly on all three metrics while still exhibiting severe permissiveness:
+the LLM might arrive at the correct answer by successfully discriminating among
+thousands of valid-but-irrelevant paths using parametric knowledge, rather than
+because the constraint focused the search. The Semantic Irrelevance Ratio is
+introduced to fill this measurement gap.
 
+\subsection{Formal Definition}
 
+Let $\mathcal{P}(q, t)$ denote the set of KG paths admitted by the constraint
+oracle at decoding step $t$ for question $q$. A path
+$p \in \mathcal{P}(q, t)$ is defined as \textit{semantically irrelevant} if its
+cosine similarity to the question-context embedding falls below a fixed reference
+threshold $\tau_{\text{ref}}$:
+\begin{equation}
+  \text{irrelevant}(p, q, y_{<t}) = \mathbf{1}\!\left[
+    \cos\!\bigl(E(p),\; E(\text{concat}(q, y_{<t}))\bigr) < \tau_{\text{ref}}
+  \right]
+  \label{eq:irrelevant}
+\end{equation}
+where $E(\cdot)$ is the all-MiniLM-L6-v2 sentence encoder and
+$\tau_{\text{ref}} = 0.3$ is a fixed reference threshold set to capture clearly
+off-topic paths without conflating relevance filtering with DCA-Trie's own
+admission threshold $\tau$ (which is a separate, tunable hyperparameter).
 
+The Semantic Irrelevance Ratio for a single question $q$ at step $t$ is:
+\begin{equation}
+  \text{SIR}(q, t) = \frac{\sum_{p \in \mathcal{P}(q,t)}
+    \text{irrelevant}(p, q, y_{<t})}{|\mathcal{P}(q, t)|}
+  \label{eq:sir_step}
+\end{equation}
 
+The aggregate SIR for a framework over the evaluation set $\mathcal{Q}$ is
+obtained by averaging across all questions and all generation steps up to the
+maximum path length $L$:
+\begin{equation}
+  \overline{\text{SIR}} = \frac{1}{|\mathcal{Q}|} \sum_{q \in \mathcal{Q}}
+  \frac{1}{L_q} \sum_{t=1}^{L_q} \text{SIR}(q, t)
+  \label{eq:sir_aggregate}
+\end{equation}
+where $L_q$ is the length of the generated reasoning chain for question $q$.
 
+\subsection{Properties and Interpretation}
 
+$\overline{\text{SIR}}$ lies in $[0, 1]$. A value of $\overline{\text{SIR}} = 1$
+indicates that every path admitted by the oracle at every step is semantically
+irrelevant to the question — the oracle provides no semantic guidance whatsoever,
+placing the entire burden of discrimination on the LLM's parametric knowledge.
+A value of $\overline{\text{SIR}} = 0$ indicates that every admitted path is
+semantically relevant — the oracle perfectly focuses the search space. GCR and
+DoG are expected to produce high SIR values, particularly at three and four-hop
+depth where the admitted path set is largest. DCA-Trie is designed to reduce SIR
+substantially by excluding semantically irrelevant paths through the admission
+criterion of Equation~\eqref{eq:dca_oracle}. SIR is reported stratified by hop
+depth to assess whether the benefit of semantic filtering scales with problem
+difficulty as predicted.
 
+% -----------------------------------------------------------------------------
+\section{Semantic Relevance Scoring Mechanism}
+\label{sec:ch3scorer}
+% -----------------------------------------------------------------------------
 
-%\section{Software Development Process Model}
-%Some two figures
-%
-%\begin{figure}[ht!]
-%	\centering
-%	\includegraphics[width =6cm, height=6cm, keepaspectratio]{ADB.jpg}
-%	\caption{UMaT Crest}\label{umat}
-%\end{figure}
-%
-%
-%\begin{figure}[th]
-%	\centering
-%	\includegraphics{Figures/Electron}
-%	%\decoRule
-%	\caption[An Electron]{An Electron (Artist's Impression).}
-%	\label{fig:Electron}
-%\end{figure}
-%
-%
-%\section{Feasibility Studies}
-%Some table
-%\begin{table}
-%	\begin{tabular}{|c|c|c|}
-%		\hline
-%		\rule[-1ex]{0pt}{2.5ex}  &  &  \\
-%		\hline
-%		\rule[-1ex]{0pt}{2.5ex}  &  &  \\
-%		\hline
-%		\rule[-1ex]{0pt}{2.5ex}  &  &  \\
-%		\hline
-%		\rule[-1ex]{0pt}{2.5ex}  &  &  \\
-%		\hline
-%		\rule[-1ex]{0pt}{2.5ex}  &  &  \\
-%		\hline
-%	\end{tabular}
-%\caption{Some table}
-%\end{table}
-%
-%
-%\section{Requirement Gathering and Analysis}
-%
-%\subsection{\normalfont Functional and Non-Functional Requirements}
-%\subsubsection{Subsection in Italics}
+\subsection{Scorer Architecture}
 
+The semantic relevance scorer is the component that operationalises the
+transition from $f(\mathcal{G}, \mathcal{E}_q)$ to
+$f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$. It takes as input a candidate KG
+path $p$, the question $q$, and the partial generation $y_{<t}$, and outputs a
+scalar relevance score in $[0, 1]$.
+
+A candidate path $p = (e_0, r_1, e_1, \ldots, r_L, e_L)$ is serialised to a
+natural language string by concatenating entity and relation labels with spaces:
+\begin{equation}
+  \text{str}(p) = e_0 \;\|\; r_1 \;\|\; e_1 \;\|\; \cdots \;\|\; r_L \;\|\; e_L
+  \label{eq:pathstr}
+\end{equation}
+where entity labels are Freebase entity names (resolved from MIDs where
+available) and relation labels are Freebase relation strings with underscores
+replaced by spaces. The question-context query is formed by concatenating the
+question with the partial generation separated by a special delimiter:
+\begin{equation}
+  \text{query}(q, y_{<t}) = q \;\|\; \texttt{[SEP]} \;\|\;
+  \text{str}(y_{<t})
+  \label{eq:querystr}
+\end{equation}
+where $\text{str}(y_{<t})$ is the detokenised partial generation.
+
+Both $\text{str}(p)$ and $\text{query}(q, y_{<t})$ are encoded by the
+all-MiniLM-L6-v2 sentence transformer \citep{reimers2019sentence} to produce
+384-dimensional dense vectors. The relevance score is their cosine similarity:
+\begin{equation}
+  \text{score}(p,\, q,\, y_{<t}) = \cos\!\bigl(
+    E\!\left(\text{str}(p)\right),\;\;
+    E\!\left(\text{query}(q, y_{<t})\right)
+  \bigr)
+  \label{eq:scorer}
+\end{equation}
+
+A candidate path $p$ is admitted to the valid set $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$
+if and only if $\text{score}(p, q, y_{<t}) \geq \tau$, where $\tau$ is the
+admission threshold. This binary admission criterion directly integrates the
+continuous cosine similarity score into the logit-masking framework of
+Equation~\eqref{eq:logitmask} from Chapter~2.
+
+\subsection{Threshold Selection}
+
+The admission threshold $\tau$ is selected on a held-out validation subset of
+100 questions from WebQSP not used in the main evaluation. The selection
+criterion is to minimise the false negative rate (Condition~P) subject to a
+meaningful reduction in average trie size relative to GCR. Specifically, $\tau$
+is swept over the range $[0.1, 0.6]$ in increments of $0.05$, and the value is
+selected as the highest $\tau$ such that FNR $< 0.05$. This procedure is
+performed once for DCA-Trie v1 (where $\tau$ is applied at construction time to
+all paths in the static trie) and once for DCA-Trie v2 (where $\tau$ is applied
+at each expansion step). The two variants may converge to different optimal
+threshold values because v2 conditions on a growing partial generation, producing
+richer query embeddings that can support stricter filtering.
+
+\subsection{Encoder Caching}
+
+To avoid redundant computation during beam search, all path embeddings
+$E(\text{str}(p))$ for paths in the static trie are precomputed and cached before
+generation begins. This is feasible for DCA-Trie v1 because the trie is fixed at
+construction time. For DCA-Trie v2, embeddings for newly expanded paths are
+computed on demand at each step and cached for potential reuse in subsequent
+steps. The query embedding $E(\text{query}(q, y_{<t}))$ is recomputed at each
+step where the partial generation has changed (i.e., after each committed entity).
+
+% -----------------------------------------------------------------------------
+\section{DCA-Trie v1: Static Semantic Filtering}
+\label{sec:ch3v1}
+% -----------------------------------------------------------------------------
+
+\subsection{Design Rationale}
+
+DCA-Trie v1 addresses Gap~1 (the permissiveness problem) and Gap~2 (static
+efficiency) simultaneously by applying semantic filtering at trie construction
+time rather than during generation. The key insight is that even conditioning
+only on the question $q$ — without the partial generation $y_{<t}$ — can
+substantially reduce the valid path set, because most structurally reachable
+paths are irrelevant to any given question. This conditioning on $q$ alone
+upgrades the oracle from $f(\mathcal{G}, \mathcal{E}_q)$ to
+$f(\mathcal{G}, \mathcal{E}_q, q)$, preserving the precomputed trie structure
+that makes GCR's per-step constraint lookup $O(d)$ in the number of trie
+children.
+
+\subsection{Algorithm}
+
+\begin{algorithm}[htbp]
+\caption{DCA-Trie v1 — Static Semantic Filtering at Construction Time}
+\label{alg:v1}
+\begin{algorithmic}[1]
+\Require Knowledge graph $\mathcal{G}$; question entities $\mathcal{E}_q$;
+  question $q$; max hop depth $L$; admission threshold $\tau$;
+  sentence encoder $E$
+\Ensure Semantically filtered KG-Trie $\mathcal{T}^{\text{v1}}$
+
+\State \textbf{Precompute query embedding:}
+  $\mathbf{u} \gets E(\text{query}(q, \varepsilon))$
+  \Comment{$y_{<t} = \varepsilon$ at construction time}
+
+\State \textbf{Enumerate paths:}
+  $\mathcal{P} \gets \textsc{BFS}(\mathcal{G}, \mathcal{E}_q, L)$
+  \Comment{All paths within $L$ hops, as in GCR}
+
+\State \textbf{Score and filter:}
+\For{each path $p \in \mathcal{P}$}
+  \State $\mathbf{v}_p \gets E(\text{str}(p))$
+  \Comment{Precompute and cache path embedding}
+  \State $s_p \gets \cos(\mathbf{u}, \mathbf{v}_p)$
+  \If{$s_p \geq \tau$}
+    \State Add $p$ to $\mathcal{P}_{\text{filtered}}$
+  \EndIf
+\EndFor
+
+\State \textbf{Construct filtered trie:}
+  $\mathcal{T}^{\text{v1}} \gets \textsc{BuildTrie}(\mathcal{P}_{\text{filtered}})$
+
+\State \Return $\mathcal{T}^{\text{v1}}$
+
+\Statex
+\Statex \textbf{At generation time} (identical to GCR):
+\For{each step $t$}
+  \State $\mathcal{V}_t \gets \textsc{TrieLookup}(\mathcal{T}^{\text{v1}}, y_{<t})$
+  \State $\mathbf{m}_t[v] \gets \mathbf{1}[v \in \mathcal{V}_t]$ for all $v$
+  \State $\tilde{\boldsymbol{\alpha}}_t \gets \mathbf{m}_t \odot
+    \textsc{LLMLogits}(y_{<t}, x)$
+  \State $y_t \gets \text{beam-search-step}(\tilde{\boldsymbol{\alpha}}_t)$
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Complexity Analysis}
+
+The construction cost of $\mathcal{T}^{\text{v1}}$ is
+$O(|\mathcal{P}| \cdot d_E)$, where $|\mathcal{P}|$ is the number of paths
+enumerated by BFS and $d_E = 384$ is the embedding dimension. This is a
+one-time offline cost paid before generation begins. The per-step generation cost
+is $O(d)$, identical to GCR, because generation-time trie lookup in
+$\mathcal{T}^{\text{v1}}$ proceeds by the same child-node traversal as in GCR's
+unfiltered trie. The storage cost of $\mathcal{T}^{\text{v1}}$ is
+$O(|\mathcal{P}_{\text{filtered}}| \cdot L)$, which is strictly less than GCR's
+storage cost $O(|\mathcal{P}| \cdot L)$ by a factor equal to the filtration
+rate.
+
+\subsection{Faithfulness Guarantee}
+
+DCA-Trie v1 preserves structural faithfulness by construction. Every path in
+$\mathcal{P}_{\text{filtered}}$ was derived from $\textsc{BFS}(\mathcal{G},
+\mathcal{E}_q, L)$, which by definition contains only paths whose every
+consecutive triplet $(e_{i-1}, r_i, e_i) \in \mathcal{T}$ is a verified KG
+fact. Filtering paths by semantic score does not introduce any new paths — it
+only removes paths that were already valid. Therefore every token admitted by
+$\mathcal{T}^{\text{v1}}$ at generation time corresponds to a valid KG path
+prefix, satisfying Condition~F.
+
+% -----------------------------------------------------------------------------
+\section{DCA-Trie v2: Step-Wise Dynamic Expansion}
+\label{sec:ch3v2}
+% -----------------------------------------------------------------------------
+
+\subsection{Design Rationale}
+
+DCA-Trie v2 fully operationalises Equation~\eqref{eq:dca_oracle} by
+conditioning the oracle on the partial generation $y_{<t}$ at each step. The
+motivation is that $y_{<t}$ carries information that the question $q$ alone does
+not: it reveals which entities and relations have already been committed to in
+the reasoning chain, and therefore which subsequent paths are aligned with the
+direction the model is taking. For example, if the model has already committed
+to \textit{Elvis\_Presley $\to$ starred\_in $\to$ Blue\_Hawaii}, the relevant
+next steps are those connected to \textit{Blue\_Hawaii}, and the query embedding
+$E(\text{query}(q, y_{<t}))$ will reflect this by encoding both the original
+question intent and the current reasoning context.
+
+DCA-Trie v2 uses the same step-wise expansion structure as DoG
+\citep{li2024dog}, but replaces DoG's semantically blind expansion rule
+(Equation~\ref{eq:dog} from Chapter~2) with a semantically conditioned one.
+After each committed entity $e_t$, the trie is extended only with those
+KG neighbours of $e_t$ whose relevance score meets the threshold $\tau$:
+\begin{equation}
+  \mathcal{T}_{t+1} = \mathcal{T}_t \;\cup\; \bigl\{(e_t,\, r,\, e') :
+  (e_t, r, e') \in \mathcal{T}_{\mathcal{G}} \;\wedge\;
+  \text{score}(e', q, y_{<t}) \geq \tau\bigr\}
+  \label{eq:v2expansion}
+\end{equation}
+where $\mathcal{T}_{\mathcal{G}}$ denotes the full Freebase triplet set. This
+single modification — replacing the unconditional union with a semantically
+conditioned one — is the core algorithmic contribution of DCA-Trie v2 relative
+to DoG.
+
+\subsection{Algorithm}
+
+\begin{algorithm}[htbp]
+\caption{DCA-Trie v2 — Step-Wise Semantic Expansion}
+\label{alg:v2}
+\begin{algorithmic}[1]
+\Require Knowledge graph $\mathcal{G}$; question entities $\mathcal{E}_q$;
+  question $q$; admission threshold $\tau$; sentence encoder $E$;
+  LLM with vocabulary $\mathcal{V}$
+\Ensure Generated reasoning chain $y_1 \ldots y_T$
+
+\State \textbf{Initialise trie} with entity nodes for $\mathcal{E}_q$:
+  $\mathcal{T}_0 \gets \{e_q : e_q \in \mathcal{E}_q\}$
+
+\State \textbf{Precompute query embedding:}
+  $\mathbf{u}_0 \gets E(\text{query}(q, \varepsilon))$
+
+\For{each step $t = 1$ \textbf{to} $T$}
+  \State $\mathcal{V}_t \gets \textsc{TrieLookup}(\mathcal{T}_{t-1}, y_{<t})$
+  \Comment{Valid tokens from current trie}
+  \State $\mathbf{m}_t[v] \gets \mathbf{1}[v \in \mathcal{V}_t]$ for all $v$
+  \State $\tilde{\boldsymbol{\alpha}}_t \gets \mathbf{m}_t \odot
+    \textsc{LLMLogits}(y_{<t}, x)$
+  \State $y_t \gets \text{beam-search-step}(\tilde{\boldsymbol{\alpha}}_t)$
+
+  \If{$y_t$ is an \textit{entity} token $e_t$}
+    \Comment{Expansion triggered at entity commits}
+    \State \textbf{Update query embedding:}
+      $\mathbf{u}_t \gets E(\text{query}(q, y_{\leq t}))$
+    \State \textbf{Expand trie:}
+    \For{each $(e_t, r, e') \in \mathcal{T}_{\mathcal{G}}$}
+      \State $\mathbf{v}_{e'} \gets E(\text{str}((e_t, r, e')))$
+      \Comment{Cache if previously computed}
+      \State $s \gets \cos(\mathbf{u}_t, \mathbf{v}_{e'})$
+      \If{$s \geq \tau$}
+        \State Add $(e_t, r, e')$ to $\mathcal{T}_t$
+      \EndIf
+    \EndFor
+  \Else
+    \State $\mathcal{T}_t \gets \mathcal{T}_{t-1}$
+    \Comment{No expansion at relation token steps}
+  \EndIf
+\EndFor
+\State \Return $y_1 \ldots y_T$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Complexity Analysis}
+
+The per-step expansion cost of DCA-Trie v2 is
+$O(|\mathcal{N}_{e_t}| \cdot d_E)$ at entity commit steps, where
+$|\mathcal{N}_{e_t}|$ is the number of KG neighbours of $e_t$. In the worst
+case this equals $d$ (the average out-degree), but in practice the semantic
+filter immediately prunes most neighbours, so the effective cost is
+$O(|\mathcal{N}_{e_t}^{\text{filtered}}| \cdot d_E)$ where
+$|\mathcal{N}_{e_t}^{\text{filtered}}| \ll d$ for most entities. At relation
+token steps (between entity commits), no expansion occurs and the per-step cost
+is $O(d)$ as in GCR. Embedding caching means that triplets visited during
+earlier steps of the same generation do not incur repeated encoding costs.
+
+\subsection{Faithfulness Guarantee}
+
+DCA-Trie v2 preserves structural faithfulness by the same argument as v1. Every
+triple added in Equation~\eqref{eq:v2expansion} satisfies
+$(e_t, r, e') \in \mathcal{T}_{\mathcal{G}}$, i.e., it is a verified Freebase
+fact. The semantic score condition is applied as an additional filter on top of
+this structural check, not as a replacement for it. No token can be admitted to
+$\mathcal{T}_t$ unless it first passes the structural membership check
+$(e_t, r, e') \in \mathcal{T}_{\mathcal{G}}$, satisfying Condition~F.
+
+% -----------------------------------------------------------------------------
+\section{Baseline Systems}
+\label{sec:ch3baseline}
+% -----------------------------------------------------------------------------
+
+Four system configurations are evaluated to answer the research questions:
+
+\textbf{CoT baseline:} The GCR Llama-3.1-8B model \citep{dubey2024llama3} used
+without any constraint oracle, prompted with chain-of-thought examples to elicit
+multi-hop reasoning. This baseline establishes the accuracy achievable by a
+capable LLM without structural grounding, and provides the reference point for
+quantifying how much constrained decoding improves faithfulness.
+
+\textbf{GCR:} The full Graph-Constrained Reasoning framework
+\citep{luo2024gcr} with the static KG-Trie oracle
+$\mathcal{W}_{\text{val}}(t) = f(\mathcal{G}, \mathcal{E}_q)$, reproduced from
+GCR's publicly released Llama-3.1-8B checkpoint. This is the primary baseline.
+Reproduction is considered successful if Hits@1 on WebQSP is within 1--2\% of
+the published figure of 92.6.
+
+\textbf{DCA-Trie v1:} The static filtering variant described in
+Section~\ref{sec:ch3v1}, implemented as an extension to GCR's inference pipeline
+with the semantic scorer and threshold $\tau$ selected on the validation subset.
+
+\textbf{DCA-Trie v2:} The step-wise dynamic expansion variant described in
+Section~\ref{sec:ch3v2}, likewise implemented as an extension to GCR's pipeline.
+
+All four configurations use the same Llama-3.1-8B backbone, the same beam width
+$k = 5$, and the same entity linker as GCR to identify $\mathcal{E}_q$. This
+ensures that any performance difference between configurations is attributable
+solely to the constraint oracle, not to differences in the underlying model or
+inference setup.
+
+% -----------------------------------------------------------------------------
+\section{Evaluation Protocol}
+\label{sec:ch3eval}
+% -----------------------------------------------------------------------------
+
+\subsection{Datasets}
+
+Evaluation is conducted on two standard KGQA benchmarks over Freebase
+\citep{bollacker2008freebase}:
+
+\textbf{WebQSP} \citep{yih2016value}: approximately 4,737 questions with hop
+depth 1--2. The full test split is used for main evaluation. A 100-question
+held-out validation subset (disjoint from the test split) is used exclusively
+for threshold selection; these questions are not reported in main results tables.
+
+\textbf{ComplexWebQuestions (CWQ)} \citep{talmor2018web}: approximately 34,689
+questions with hop depth 1--4. The full test split is used. No questions from
+CWQ are used for threshold selection or any tuning decision.
+
+\subsection{Evaluation Metrics}
+
+Five metrics are reported for each system configuration on each dataset:
+
+\begin{enumerate}
+  \item \textbf{Hits@1:} The proportion of questions for which the top-ranked
+    generated answer exactly matches the gold answer entity. This is the primary
+    accuracy metric and is directly comparable with reported GCR figures.
+
+  \item \textbf{F1:} Token-level F1 between the generated answer string and the
+    gold answer string, following the evaluation protocol of
+    \citet{lan2022survey}. This captures partial credit for questions with
+    multiple gold answers.
+
+  \item \textbf{Structural faithfulness rate:} The proportion of generated
+    reasoning chains in which every token corresponds to a verified KG triplet.
+    Measured by exhaustive triplet lookup in Freebase for every entity-relation
+    pair in the generated chain.
+
+  \item \textbf{Semantic Irrelevance Ratio (SIR):} As defined in
+    Equations~\eqref{eq:sir_step}--\eqref{eq:sir_aggregate}, using
+    $\tau_{\text{ref}} = 0.3$.
+
+  \item \textbf{Average trie size per step:} The mean number of valid tokens
+    $|\mathcal{V}_t|$ admitted by the constraint oracle at each decoding step,
+    averaged across all steps and all questions. This provides an interpretable
+    measure of how much the constraint oracle narrows the search space.
+\end{enumerate}
+
+\subsection{Hop-Depth Stratification}
+
+All metrics except structural faithfulness rate are reported stratified by
+question hop depth (1, 2, 3, 4 hops), following the evaluation protocol of
+\citet{lan2022survey}. This stratification is critical because the permissiveness
+problem is expected to be most acute at high hop depth, and DCA-Trie's SIR
+reduction is expected to scale with hop depth. Reporting aggregated results
+without stratification would obscure the most important patterns.
+
+\subsection{Experimental Configuration}
+
+All experiments are conducted on Google Colab Pro with an NVIDIA A100 GPU (40 GB
+VRAM). The Llama-3.1-8B model is loaded in 16-bit precision using the
+HuggingFace Transformers library \citep{wolf2020transformers}. Beam search width
+is set to $k = 5$ for all constrained configurations and $k = 1$ (greedy) for
+the CoT baseline, following GCR's experimental protocol. The all-MiniLM-L6-v2
+sentence encoder is loaded from the sentence-transformers library
+\citep{reimers2019sentence} and run on CPU in parallel with GPU-based LLM
+inference to avoid contention. The maximum generation length is set to
+$3L + 2$ tokens, where $L$ is the maximum hop depth for the dataset (2 for
+WebQSP, 4 for CWQ).
+
+% -----------------------------------------------------------------------------
+\section{Ablation and Sensitivity Analysis}
+\label{sec:ch3ablation}
+% -----------------------------------------------------------------------------
+
+Three ablation analyses are conducted to isolate the contribution of individual
+design choices and to assess the robustness of the framework:
+
+\textbf{Ablation 1 — Threshold sensitivity ($\tau$):} DCA-Trie v1 and v2 are
+evaluated at five values of $\tau$ spanning the range $[0.15, 0.45]$ in
+increments of $0.075$, holding all other settings fixed. This analysis reveals
+the precision-recall tradeoff of the semantic filter: higher $\tau$ produces a
+more focused valid set (lower SIR, lower average trie size) but risks excluding
+more gold answer paths (higher FNR). Results are reported as curves of Hits@1,
+SIR, and FNR against $\tau$ for WebQSP.
+
+\textbf{Ablation 2 — Encoder architecture:} DCA-Trie v1 is evaluated with three
+encoder alternatives in place of all-MiniLM-L6-v2: (a) all-mpnet-base-v2, (b)
+BM25 lexical retrieval as a non-neural baseline, and (c) the LLM's own last-layer
+hidden state representations as path embeddings. This analysis confirms the
+encoder selection argument made in Section~2.8.2 of Chapter~2.
+
+\textbf{Ablation 3 — Beam width ($k$):} DCA-Trie v2 is evaluated at beam widths
+$k \in \{1, 3, 5, 10\}$. Since DCA-Trie v2 reduces $|\mathcal{V}_t|$ at each
+step, smaller beam widths are expected to be more competitive relative to GCR
+than they would be with a larger valid set, because the reduction in candidate
+pairs per expansion step is proportionally greater. This analysis quantifies the
+interaction between semantic filtering and beam search exploration.
+
+% -----------------------------------------------------------------------------
+\section{Scope Boundaries and Anticipated Limitations}
+\label{sec:ch3limitations}
+% -----------------------------------------------------------------------------
+
+The following boundaries and limitations are acknowledged before results are
+presented in Chapter~4, in the interest of honest characterisation:
+
+\textbf{Single KG and domain:} All experiments use Freebase as the knowledge
+graph. Generalisation of DCA-Trie to other KGs (Wikidata, ConceptNet) is
+identified as future work and is not evaluated here.
+
+\textbf{No model fine-tuning:} The Llama-3.1-8B backbone is used as released by
+GCR without modification. DCA-Trie's improvements are entirely attributable to
+the constraint oracle, not to any learned adaptation of the LLM.
+
+\textbf{Empirical faithfulness evidence:} Condition~F is verified empirically by
+exhaustive triplet checking rather than by formal proof. This is consistent with
+prior work \citep{luo2024gcr, li2024dog} and is sufficient for the purposes of
+this evaluation.
+
+\textbf{Threshold as a hyperparameter:} The admission threshold $\tau$ is
+selected on a held-out validation subset and may not generalise optimally to
+other datasets or question distributions. The threshold sensitivity ablation
+(Ablation 1) characterises this uncertainty explicitly.
+
+\textbf{False negative risk:} Despite the FNR constraint in Condition~P, there
+remains a small but non-zero probability that the semantic filter excludes the
+gold answer path for individual questions, particularly when the gold path
+involves entity or relation labels that are semantically distant from the
+question surface form in the embedding space. These cases are identified and
+analysed qualitatively in Chapter~4.
+
+\textbf{Latency:} DCA-Trie v2 incurs per-step encoder inference overhead absent
+from GCR. Latency is reported in Chapter~4 as wall-clock time per question.
+Latency optimisation for production deployment is beyond the scope of this
+project.
