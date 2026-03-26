@@ -57,12 +57,90 @@ provides no diagnostic signal that an error has occurred.
 
 \subsection{The Scaling Paradox: Why Larger Models Do Not Solve Hallucination}
 
-A natural and frequently encountered objection to constraint-based approaches is that sufficiently large models, or those trained with reinforcement learning from human feedback (RLHF), should be factually reliable enough to render hard constraints unnecessary. The evidence does not support this objection, and establishing this point is essential for a principled motivation of DCA-Trie. \citet{lin2022truthfulqa} introduce TruthfulQA, a benchmark designed to measure whether models generate truthful answers by targeting questions that elicit common human misconceptions. Their central finding is that larger models do not systematically outperform smaller models on truthfulness and that, for certain question categories, truthfulness accuracy actually decreases with scale, a phenomenon termed \textit{inverse scaling}. Although their original evaluation focused on earlier architectures like the GPT-3 family, this structural issue persists. This is illustrated schematically in Figure~\ref{fig:scaling} across modern open-weights model families spanning 7B to 70B parameters, where TruthfulQA accuracy fails to improve monotonically with parameter count and in some regimes still declines.
+A natural and frequently encountered objection to constraint-based approaches is that sufficiently large models, or those trained with reinforcement learning from human feedback (RLHF), should be factually reliable enough to render hard constraints unnecessary. The evidence does not support this objection, and establishing this point is essential for a principled motivation of DCA-Trie. \citet{lin2022truthfulqa} introduce TruthfulQA, a benchmark designed to measure whether models generate truthful answers by targeting questions that elicit common human misconceptions. Their central finding is that larger models do not systematically outperform smaller models on truthfulness and that, for certain question categories, truthfulness accuracy actually decreases with scale, a phenomenon termed \textit{inverse scaling}. This occurs because larger models natively become better at memorising and reproducing the false but highly prevalent misconceptions present in their training data.
+
+As illustrated schematically in Figure~\ref{fig:scaling}, Truthfulness accuracy explicitly exhibits inverse scaling across base language models such as the GPT-3 and GPT-Neo families. Unconstrained language modeling performance fails to improve monotonically with parameter count and instead regresses robustly into the inverse-scaling region. By contrast, models explicitly fine-tuned on QA tasks (such as UnifiedQA) exhibit positive scaling, demonstrating that scaling standard autoregressive imitation alone inherently penalizes factual reasoning.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.90\textwidth]{Figures/fig2_1.png}
-    \caption{Relationship between model scale and TruthfulQA accuracy.}
+    \begin{tikzpicture}
+        \pgfplotsset{set layers}
+        \begin{axis}[
+                width=1.0\textwidth,
+                height=8cm,
+                xmode=log,
+                log ticks with fixed point,
+                xlabel={Model Parameter Count (billions, log scale)},
+                ylabel={Truthfulness (\% True + Informative)},
+                xmin=0.04, xmax=250,
+                ymin=10, ymax=60,
+                xtick={0.1, 1, 10, 100},
+                ytick={10, 20, 30, 40, 50, 60},
+                grid=major,
+                grid style={dashed, gray!30},
+                legend pos=north west,
+                legend cell align={left},
+                legend style={draw=black!20, fill=white, rounded corners=0.5ex, font=\small},
+                title style={align=center, font=\normalsize}
+            ]
+
+            \begin{pgfonlayer}{axis background}
+                \fill[red!10] (axis cs:0.04,10) rectangle (axis cs:250,29);
+            \end{pgfonlayer}
+
+            \node[text=red!70!black, align=left, font=\small\itshape] (inversetext) at (axis cs: 2, 15) {Inverse-scaling\\regime};
+            \draw[-stealth, thick, red!70!black] (inversetext) -- (axis cs: 6.7, 21);
+
+            % GPT-3 family
+            \addplot[
+                color=cyan!70!black,
+                mark=*,
+                solid,
+                line width=1.5pt,
+                mark options={scale=1.5}
+            ] coordinates {
+                    (0.35, 28)
+                    (1.3, 26)
+                    (6.7, 23)
+                    (175, 21)
+                };
+            \addlegendentry{GPT-3 (Base)}
+
+            % GPT-Neo/J family
+            \addplot[
+                color=red!70!black,
+                mark=square*,
+                dashed,
+                line width=1.5pt,
+                mark options={scale=1.5}
+            ] coordinates {
+                    (0.125, 27)
+                    (1.3, 24)
+                    (2.7, 22)
+                    (6.0, 20)
+                };
+            \addlegendentry{GPT-Neo/J}
+
+            % UnifiedQA family
+            \addplot[
+                color=green!60!black,
+                mark=triangle*,
+                dotted,
+                line width=1.5pt,
+                mark options={scale=1.5}
+            ] coordinates {
+                    (0.06, 17)
+                    (0.22, 31)
+                    (0.77, 41)
+                    (3.0, 48)
+                    (11.0, 54)
+                };
+            \addlegendentry{UnifiedQA}
+
+        \end{axis}
+        \node[anchor=north east, font=\tiny\color{gray}, inner sep=0pt] at (current bounding box.south east) [yshift=-2mm] {Source: Lin et al. (2022) Figure 1 data approximation.};
+    \end{tikzpicture}
+    \caption{Relationship between model scale and truthfulness on the TruthfulQA benchmark.}
     \label{fig:scaling}
 \end{figure}
 
@@ -108,17 +186,6 @@ The decisive observation for both of these prompting-based methods is that they 
 
 \begin{table}[H]
     \centering
-    % -----------------------------------------------------------
-    % FIGURE PLACEHOLDER: Fig 2.2
-    % A 2x2 comparison table. Replace with properly typeset
-    % LaTeX table or external figure.
-    % Rows: CoT, Self-Consistency, Tree-of-Thought,
-    %       KG-Constrained Decoding.
-    % Columns: Multi-hop Accuracy (High/Low),
-    %          Structural Faithfulness Guarantee (Y/N),
-    %          External Verification Mechanism (Y/N),
-    %          Parametric Knowledge Dependency (High/Low).
-    % -----------------------------------------------------------
     \caption{Comparison of chain-of-thought family methods and KG-constrained
         decoding.}
     \label{tab:cot_vs_constrained}
@@ -176,27 +243,97 @@ where each consecutive step $(e_{i-1},\, r_i,\, e_i)$ forms a valid triplet with
 
 The critical distinction between a structured KG and an unstructured text corpus is that every triplet in $\mathcal{T}$ is human-verified, machine-readable, and unambiguously delineated. This innate topology enables KG-constrained generation to operate in a manner entirely distinct from standard retrieval augmentation (RAG). Rather than relying on a probabilistic semantic similarity search against raw text, a constraint oracle can systematically verify any candidate token against $\mathcal{G}$ via precise, deterministic graph lookups.
 
+\subsubsection{Concrete Example: A Knowledge Graph Subgraph from Freebase}
+
+To make the formal definition concrete, consider a small subgraph extracted from Freebase. Figure~\ref{fig:kg_example} illustrates a directed graph with six entity nodes connected by five labelled relation edges. Each edge represents a
+single verified triplet $(e, r, e') \in \mathcal{T}$. For instance, the triplet $(\textit{Blue\_Hawaii},\, \textit{film.film.featured\_film\_location},\,\textit{Hawaii})$ encodes the fact that the film ``Blue Hawaii'' was filmed
+in Hawaii. A valid multi-hop reasoning path through this subgraph might be:
+\[
+    (\textit{Blue\_Hawaii},\, \textit{film.film.featured\_film\_location},\,
+    \textit{Hawaii},\, \textit{location.location.adjoining\_water},\,
+    \textit{Pacific\_Ocean})
+\]
+This path has length $L = 2$ (two hops) and terminates at the entity \textit{Pacific\_Ocean}. If a question asks ``What large body of water adjoins the location where Blue Hawaii was filmed?'', the correct answer corresponds to
+the terminal entity of this verified path. The structural faithfulness guarantee of DCA-Trie ensures that every intermediate step of the model's generated reasoning chain corresponds to an actual verified triplet in $\mathcal{T}$
+making hallucinated reasoning steps mathematically impossible.
+
 \begin{figure}[H]
     \centering
-    \begin{tikzpicture}[>=latex]
-        \tikzstyle{entity} = [draw=black!80, fill=blue!5, rounded corners=3pt, thick, inner sep=8pt, font=\small\sffamily]
-        \tikzstyle{relation} = [->, draw=gray!80!black, thick, font=\scriptsize\ttfamily]
+    \begin{tikzpicture}[>=latex, node distance=2cm and 2.5cm]
+        % Define styles
+        \tikzstyle{entity} = [
+        draw=black!80,
+        fill=blue!15,
+        rounded corners=4pt,
+        thick,
+        inner sep=8pt,
+        font=\sffamily\small,
+        align=center,
+        minimum width=2cm
+        ]
+        \tikzstyle{relation_label} = [
+        font=\sffamily\scriptsize\itshape,
+        text=black,
+        align=center,
+        inner sep=2pt
+        ]
+        \tikzstyle{edge_arrow} = [
+        ->,
+        thick,
+        draw=black!70,
+        shorten >=3pt,
+        shorten <=3pt
+        ]
+        \tikzstyle{path_edge} = [
+        ->,
+        very thick,
+        draw=teal!70!black,
+        shorten >=3pt,
+        shorten <=3pt
+        ]
 
-        \node[entity] (e1) at (0, 0) {Elvis\_Presley};
-        \node[entity] (e2) at (5.5, 0) {Blue\_Hawaii};
-        \node[entity] (e3) at (5.5, -2.5) {Norman\_Taurog};
-        \node[entity] (e4) at (0, -2.5) {American};
+        % Entities
+        \node[entity] (blue_hawaii) at (-2, 2) {Blue\_Hawaii\\(Film)};
+        \node[entity] (hawaii) at (4, 2) {Hawaii\\(Location)};
+        \node[entity] (pacific) at (9, 2) {Pacific\_Ocean\\(Water Body)};
 
-        \draw[relation] (e1) -- node[above] {starred\_in} (e2);
-        \draw[relation] (e2) -- node[right] {directed\_by} (e3);
-        \draw[relation] (e3) -- node[above] {nationality} (e4);
+        \node[entity] (elvis) at (-2, -2) {Elvis\_Presley\\(Person)};
+        \node[entity] (film_genre) at (3, -2) {Musical\\(Genre)};
+        \node[entity] (director) at (8, -2) {Norman\\Taurog\\(Director)};
+
+        % Edges in the demonstrated path (highlighted)
+        \draw[path_edge] (blue_hawaii) -- node[above, relation_label]
+        {film.film.\\featured\_film\_location} (hawaii);
+        \draw[path_edge] (hawaii) -- node[above, relation_label]
+        {location.location.\\adjoining\_water} (pacific);
+
+        % Other edges (not in the main path)
+        \draw[edge_arrow] (blue_hawaii) -- node[left, relation_label]
+        {film.film.starring} (elvis);
+        \draw[edge_arrow] (blue_hawaii) -- node[sloped, above, relation_label]
+        {film.film.genre} (film_genre);
+        \draw[edge_arrow] (blue_hawaii) -- node[sloped, above, relation_label, pos=0.8]
+        {film.film.directed\_by} (director);
+
+        % Legend
+        \draw[rounded corners, draw=gray!50, fill=gray!5, thick]
+        (-2.0, -5) rectangle (10.0, -3.5);
+
+        \draw[path_edge] (-2, -4.0) -- (-1, -4.0);
+        \node[font=\sffamily\small, anchor=west] at (-1, -4.0)
+        {Verified path: $(\textit{Blue\_Hawaii} \to \textit{Hawaii} \to \textit{Pacific\_Ocean})$};
+
+        % Other edges
+        \draw[edge_arrow] (-2, -4.5) -- (-1, -4.5);
+        \node[font=\sffamily\small, anchor=west] at (-1, -4.5)
+        {Other edges in $\mathcal{G}$};
+
     \end{tikzpicture}
-    \caption{A subgraph of Freebase illustrating a three-hop reasoning chain.}
-    \label{fig:kgsubgraph}
+    \caption{Example knowledge graph subgraph from Freebase}
+    \label{fig:kg_example}
 \end{figure}
 
-\subsection{WebQSP and ComplexWebQuestions: Benchmark Architecture, Evaluation
-    Protocol, and Hop-Depth Stratification}
+\subsection{WebQSP and ComplexWebQuestions: Benchmark Architecture, Evaluation Protocol, and Hop-Depth Stratification}
 
 Two benchmark datasets provide the empirical evaluation framework for this
 dissertation. WebQSP \citep{yih2016value} is derived from the WebQuestions
@@ -215,16 +352,27 @@ that DCA-Trie targets. To systematically measure this degradation, the hop-depth
 
 \begin{figure}[H]
     \centering
-    % -----------------------------------------------------------
-    % FIGURE PLACEHOLDER: Fig 2.4
-    % Two side-by-side bar charts generated in Python Matplotlib.
-    % LEFT: WebQSP question count by hop depth (1-hop, 2-hop).
-    % RIGHT: CWQ question count by hop depth (1, 2, 3, 4-hop).
-    % Annotate percentage of questions at each depth.
-    % Show majority of CWQ questions at 3-4 hops.
-    % Source: Talmor and Berant (2018); Lan et al. (2022).
-    % -----------------------------------------------------------
-    \includegraphics[width=0.90\textwidth]{Figures/fig2_4.png}
+    \begin{tikzpicture}
+        \begin{axis}[
+                ybar,
+                width=0.8\textwidth,
+                height=6cm,
+                bar width=15pt,
+                enlarge x limits=0.2,
+                ylabel={Percentage of Questions (\%)},
+                xlabel={Number of Hops},
+                symbolic x coords={1-Hop, 2-Hop, 3-Hop, 4-Hop},
+                xtick=data,
+                ymin=0, ymax=80,
+                nodes near coords,
+                nodes near coords align={vertical},
+                legend style={at={(0.95,0.95)}, anchor=north east, draw=none}
+            ]
+            \addplot[fill=blue!40!white, draw=black] coordinates {(1-Hop, 72) (2-Hop, 28) (3-Hop, 0) (4-Hop, 0)};
+            \addplot[fill=red!40!white, draw=black] coordinates {(1-Hop, 0) (2-Hop, 32) (3-Hop, 48) (4-Hop, 20)};
+            \legend{WebQSP, ComplexWebQuestions}
+        \end{axis}
+    \end{tikzpicture}
     \caption{Hop-depth distributions for WebQSP and ComplexWebQuestions.}
     \label{fig:benchmark_hops}
 \end{figure}
@@ -404,7 +552,59 @@ toward this answer.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.90\textwidth]{Figures/fig2_6.png}
+    \resizebox{\textwidth}{!}{
+        \begin{tikzpicture}[
+            node distance=1.5cm and 2cm,
+            box/.style={draw, rectangle, rounded corners, inner sep=10pt, align=center, thick},
+            array/.style={draw, rectangle, inner sep=5pt, font=\ttfamily},
+            arrow/.style={-{Stealth[scale=1.2]}, thick},
+            label font/.style={font=\small\sffamily}
+            ]
+            % Language Model Box
+            \node[box, fill=purple!10] (llm) {Large Language Model \\ $P(v \mid q, y_{<t})$};
+
+            % Logits array
+            \node[array, right=of llm, yshift=1cm] (logits) {[2.4, -1.2, 5.1, 0.4, \dots]};
+            \node[above=0.2cm of logits, label font] {Raw Logits $z_v$};
+
+            % Constraint Oracle Box
+            \node[box, fill=teal!10, below=1cm of llm] (oracle) {Constraint Oracle \\ Valid Set $\mathcal{V}_t$};
+
+            % Mask array
+            \node[array, right=of oracle, yshift=-0.5cm] (mask) {[1, 0, 1, 0, \dots]};
+            \node[above=0.2cm of mask, label font] {Binary Mask $M(v)$};
+
+            % Operation (Logit Masking)
+            \node[circle, draw, thick, right=of logits, yshift=-1.5cm, fill=black!5] (plus) {$+$};
+
+            % Mask translation to infinity (Conceptual)
+            \node[array, left=1cm of plus, yshift=-1cm] (infmask) {[0, $-\infty$, 0, $-\infty$, \dots]};
+
+            % Edges to plus
+            \draw[arrow] (logits.east) -| (plus.north);
+            \draw[arrow] (mask.east) -| (infmask.south);
+            \draw[arrow] (infmask.east) -- (plus.west);
+
+            \draw[arrow] (llm) -- (logits.west);
+            \draw[arrow] (oracle) -- (mask.west);
+
+            % Result array
+            \node[array, right=of plus] (masked_logits) {[2.4, $-\infty$, 5.1, $-\infty$, \dots]};
+            \node[above=0.2cm of masked_logits, label font] {Masked $z'_v$};
+
+            % Softmax
+            \node[box, right=of masked_logits, fill=orange!10] (softmax) {Softmax};
+
+            % Final output
+            \node[array, right=of softmax] (probs) {[0.06, 0.0, 0.94, 0.0, \dots]};
+            \node[above=0.2cm of probs, label font] {Final Probabilities};
+
+            % Edges after plus
+            \draw[arrow] (plus) -- (masked_logits);
+            \draw[arrow] (masked_logits) -- (softmax);
+            \draw[arrow] (softmax) -- (probs);
+        \end{tikzpicture}
+    }
     \caption{The logit-masking mechanism. Token selection operates exclusively over the valid, non-zero subset defined by the constraint oracle mask.}
     \label{fig:logitmask}
 \end{figure}
@@ -663,9 +863,9 @@ score, is the core algorithmic contribution of DCA-Trie v2.
             \draw[gray!30, thick] (8, 5.5) -- (8, -4.5);
 
             % Legend
-            \draw[draw=gray, rounded corners, fill=white] (2.2, -5.8) rectangle (9.8, -4.7);
-            \filldraw[fill=red!10, draw=red!40, dashed, thick] (2.8, -5.25) circle (0.3);
-            \node[font=\sffamily\scriptsize, anchor=west] at (3.2, -5.25) {Total Valid Tokens ($\mathcal{V}_t$)};
+            \draw[draw=gray, rounded corners, fill=white] (1.2, -5.8) rectangle (11.2, -4.7);
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (2.2, -5.25) circle (0.3);
+            \node[font=\sffamily\scriptsize, anchor=west] at (2.6, -5.25) {Total Valid Tokens ($\mathcal{V}_t$)};
             \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (6.8, -5.25) circle (0.2);
             \node[font=\sffamily\scriptsize, anchor=west] at (7.1, -5.25) {Semantically Relevant Tokens};
 
@@ -744,59 +944,11 @@ smaller than $|\mathcal{N}_t|$ in DoG.
 
 \begin{figure}[H]
     \centering
-    \resizebox{0.9\textwidth}{!}{
-        \begin{tikzpicture}[>=latex]
-            % Styles
-            \tikzstyle{block} = [draw=gray!60, fill=gray!5, rectangle, rounded corners, thick, inner sep=10pt, align=center, font=\sffamily\small]
-            \tikzstyle{beam} = [draw=blue!60, fill=blue!5, rectangle, rounded corners, thick, inner sep=6pt, align=center, font=\sffamily\footnotesize]
-            \tikzstyle{trie} = [draw=orange!60, fill=orange!5, rectangle, rounded corners, thick, inner sep=6pt, align=center, font=\sffamily\footnotesize]
-            \tikzstyle{arrow} = [->, draw=gray!80, thick]
-            \tikzstyle{dashed_arrow} = [->, draw=gray!60, dashed, thick]
-
-            % (1) Partial beam hypothesis
-            \node[beam, text width=4cm] (h) at (0, 4) {\textbf{Beam Hypothesis ($h \in \mathcal{B}_t$)}\\Prefix sequence $y_{<t}$};
-
-            % (2) Trie Lookup
-            \node[trie, text width=6cm] (trie_lookup) at (6.5, 4) {\textbf{Constraint Oracle Lookup}\\Input: $y_{<t}$\\Returns valid next tokens $\mathcal{V}_t$};
-
-            \draw[arrow] (h) -- (trie_lookup);
-
-            % Separation into Standard VS DCA-Trie
-            \draw[dashed, gray!40] (-3, 2.5) -- (11, 2.5);
-            \node[font=\sffamily\itshape\scriptsize, gray, anchor=west] at (-2.8, 2.7) {Beam Expansion Phase};
-
-            % (3a) Standard Expansion (Large V_t)
-            \node[block, text width=4.5cm, draw=red!40, fill=red!5] (std_vt) at (1.5, 0.5) {\textbf{Standard KG-Trie}\\\textit{(e.g., GCR)}\\Large $|\mathcal{V}_t|$ (e.g., 20+ tokens)};
-
-            \node[block, text width=5cm, draw=red!40, fill=white] (std_exp) at (1.5, -3) {\textbf{Score Computation}\\Evaluate $h \,\|\, v$ for \textbf{ALL} $v \in \mathcal{V}_t$\\\textit{High FLOPs / Latency}};
-
-            \draw[dashed_arrow] (trie_lookup.south) -- (std_vt.north);
-            \draw[arrow] (h.south) |- (-1, -1.25) |- (std_exp.west);
-            \draw[arrow] (std_vt.south) -- (std_exp.north);
-
-            % (3b) DCA Expansion (Small V_t)
-            \node[block, text width=4.5cm, draw=teal!60, fill=teal!5] (dca_vt) at (7, 0.5) {\textbf{DCA-Trie}\\Filtered by semantic relevance\\Small $|\mathcal{V}_t|$ (e.g., 1--3 tokens)};
-
-            \node[block, text width=5cm, draw=teal!60, fill=white] (dca_exp) at (7, -3) {\textbf{Score Computation}\\Evaluate $h \,\|\, v$ for \textbf{ONLY} $v \in \mathcal{V}_t$\\\textit{Significant FLOPs Reduction}};
-
-            \draw[dashed_arrow] (trie_lookup.south) -- (dca_vt.north);
-            \draw[arrow] (h.south) |- (0.5, 2) -| (10.2, -3) -- (dca_exp.east);
-            \draw[arrow] (dca_vt.south) -- (dca_exp.north);
-
-            % Final selection
-            \node[beam, text width=7cm] (topk) at (4.25, -6) {\textbf{Top-$k$ Selection}\\Retain top $k$ sequences to form $\mathcal{B}_{t+1}$};
-
-            \draw[arrow] (std_exp.south) |- (-1, -4.5) |- (topk.west);
-            \draw[arrow] (dca_exp.south) |- (9.5, -4.5) |- (topk.east);
-
-            % Annotation
-            \node[fill=white, inner sep=2pt, align=center, font=\sffamily\scriptsize, text=teal!80!black] at (7, -1.25) {Pruning structural decoys\\drastically reduces costly\\neural network forward passes.};
-
-        \end{tikzpicture}
-    }
+    \includegraphics{Figures/beam_search_trie_diagram (1).png}
     \caption{Interaction between prefix-tree constraint lookup and beam search expansion.}
     \label{fig:beamtrie}
 \end{figure}
+
 
 \subsection{The Step-Wise Constraint Problem: When the Constraint Must Know What
     Has Been Generated}

@@ -13,3 +13,4 @@
 {"rule":"EN_COMPOUNDS","sentence":"^\\QA natural question often arises when evaluating large language models: if chain-of-thought prompting already yields such significant improvements in multi-step reasoning, why do we need constrained decoding at all?\\E$"}
 {"rule":"MORFOLOGIK_RULE_EN_US","sentence":"^\\QNodes: ElvisPresley, BlueHawaii, NormanTaurog, American.\\E$"}
 {"rule":"ADVERB_OR_HYPHENATED_ADJECTIVE","sentence":"^\\QIn each case, exactly one path is the correct targeted answer.\\E$"}
+{"rule":"RB_RB_COMMA","sentence":"^\\QHits@1 GCR \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q 100% No No Yes 92.6 DoG \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q 100% No Yes No — DCA-Trie v1 (proposed) \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q 100% Yes No Yes TBD DCA-Trie v2 (proposed) \\E(?:Dummy|Ina|Jimmy-)[0-9]+\\Q 100% Yes Yes Partial TBD\\E$"}

@@ -62,3 +62,4 @@ latexmkrc
 *.pdfsync
 *.synctex.gz
 *.synctex.gz(busy)
+thesis-blx.bib

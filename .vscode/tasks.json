@@ -22,6 +22,18 @@
 			],
 			"isBackground": false,
 			"group": "build"
+		},
+		{
+			"label": "Watch PDF (latexmk -pvc)",
+			"type": "shell",
+			"command": "latexmk",
+			"args": [
+				"-pdf",
+				"-pvc",
+				"thesis.tex"
+			],
+			"isBackground": true,
+			"group": "build"
 		}
 	]
 }
