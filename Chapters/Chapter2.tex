@@ -564,7 +564,7 @@ to $\mathcal{W}_{\text{val}}^{\text{DCA}}(t) = f(\mathcal{G}, \mathcal{E}_q, q,
 \citet{li2024dog} introduce Decoding on Graphs (DoG) as a partial remedy to
 GCR's static trie. DoG introduces step-wise trie expansion: after committing to
 an entity $e_t$ during generation, the valid set is extended with all KG
-neighbours of $e_t$. Formally, after committing entity $e_t$:
+neighbors of $e_t$. Formally, after committing entity $e_t$:
 
 \begin{equation}
     \mathcal{T}_{t+1} \;=\; \mathcal{T}_t \;\cup\; \bigl\{(e_t,\, r,\, e') :
@@ -582,7 +582,7 @@ the pre-generation BFS.
 
 However, DoG has two persistent limitations. First, as is explicit in
 Equation~\eqref{eq:dog}, the expansion rule is semantically blind: every
-neighbour of every visited entity is admitted to $\mathcal{T}_{t+1}$ regardless
+neighbor of every visited entity is admitted to $\mathcal{T}_{t+1}$ regardless
 of its relevance to $q$ or to the partial generation $y_{<t}$. The permissiveness
 problem therefore persists: the number of paths in the valid set may remain in
 the thousands at every step. Second, DoG sacrifices the computational efficiency
@@ -921,27 +921,62 @@ For every variant, the same single sentence applies: unlike DCA-Trie, none of
 these methods modifies the token selection mechanism and therefore none can
 guarantee structural faithfulness.
 
-\begin{figure}[H]
+\begin{figure}[t]
     \centering
-    % -----------------------------------------------------------
-    % FIGURE PLACEHOLDER: Fig 2.10
-    % Two-panel figure (draw.io or PowerPoint).
-    % LEFT: RAG pipeline; retrieved context flows into LLM as
-    %   additional input. Output arrow labelled 'any token in V
-    %   possible'. Annotate in red: 'soft influence; faithfulness
-    %   not guaranteed.'
-    % RIGHT: Constrained decoding pipeline; constraint oracle
-    %   produces binary mask applied to logits. Output arrow
-    %   labelled 'only valid KG-path tokens possible'. Annotate
-    %   in green: 'hard constraint; structural faithfulness
-    %   guaranteed.'
-    % -----------------------------------------------------------
-    \fbox{\parbox{0.85\textwidth}{\centering\vspace{2.5cm}
-            [Figure 2.10: RAG vs.\ constrained decoding pipelines. LEFT (red):
-                soft influence, no faithfulness guarantee. RIGHT (green): hard
-                constraint, structural faithfulness guaranteed.]
-            \vspace{2.5cm}}}
-    \caption{Architectural comparison of RAG and KG-constrained decoding.}
+    \resizebox{\textwidth}{!}{
+        \begin{tikzpicture}[>=latex, font=\sffamily\footnotesize]
+            % Styles
+            \tikzstyle{block} = [draw, rectangle, rounded corners, minimum height=1cm, minimum width=2.5cm, align=center, fill=blue!5]
+            \tikzstyle{data} = [draw=none, fill=gray!10, rounded corners, inner sep=5pt, align=center]
+            \tikzstyle{redanno} = [text=red!80!black, font=\sffamily\footnotesize\bfseries, align=center]
+            \tikzstyle{greenanno} = [text=green!60!black, font=\sffamily\footnotesize\bfseries, align=center]
+
+            % LEFT PANEL: RAG
+            \node[font=\sffamily\normalsize\bfseries] at (-3, 3.5) {RAG Pipeline};
+            \node[data] (q_left) at (-3, 2.3) {Question $q$};
+            \node[block, fill=orange!10] (ret) at (-5.5, 1.2) {Retriever \\ (Soft Context)};
+            \node[data] (ctx) at (-5.5, -0.2) {Retrieved \\ Subgraph/Text};
+            \node[block] (llm_left) at (-3, -1.5) {LLM \\ (Autoregressive)};
+
+            \draw[->, thick] (q_left) -| (ret);
+            \draw[->, thick] (ret) -- (ctx);
+            \draw[->, thick] (ctx) |- (llm_left);
+            \draw[->, thick] (q_left) -- (llm_left);
+
+            \node[data] (out_left) at (-3, -3) {Any token $v \in \mathcal{V}$ \\ possible};
+            \draw[->, thick] (llm_left) -- (out_left);
+
+            \node[redanno] at (-3, -4.5) {Soft Influence:\\ Faithfulness Not Guaranteed};
+
+            % RIGHT PANEL: Constrained Decoding
+            \node[font=\sffamily\normalsize\bfseries] at (4, 3.5) {Constrained Decoding Pipeline};
+            \node[data] (q_right) at (4, 2.3) {Question $q$ \\ \& Prefix $y_{<t}$};
+            \node[block, fill=teal!10] (oracle) at (1.5, 1.2) {Constraint Oracle \\ (KG-Trie)};
+            \node[block] (llm_right) at (6.5, 1.2) {LLM \\ (Raw Logits)};
+
+            \node[data] (mask) at (1.5, -0.2) {Binary Mask \\ $\alpha_t \in \{0, -\infty\}$};
+            \node[data] (logits) at (6.5, -0.2) {Logits \\ $P(v \mid y_{<t}, x)$};
+            \node[draw, circle, inner sep=3pt, fill=blue!10] (mul) at (4, -0.2) {\textbf{+}};
+
+            \draw[->, thick] (q_right) -| (oracle);
+            \draw[->, thick] (q_right) -| (llm_right);
+            \draw[->, thick] (oracle) -- (mask);
+            \draw[->, thick] (llm_right) -- (logits);
+            \draw[->, thick] (mask) -- (mul);
+            \draw[->, thick] (logits) -- (mul);
+
+            \node[data] (out_right) at (4, -3) {Only valid KG tokens \\ $v \in \mathcal{W}_{\text{val}}(t)$ possible};
+            \draw[->, thick] (mul) -- (4, -1.2) -- (out_right);
+            \node[anchor=west, font=\scriptsize] at (4.1, -1.5) {Masked Logits};
+
+            \node[greenanno] at (4, -4.5) {Hard Constraint:\\ Structural Faithfulness Guaranteed};
+
+            % Divider
+            \draw[dashed, gray, thick] (-0.5, -5) -- (-0.5, 4);
+
+        \end{tikzpicture}
+    }
+    \caption{Architectural comparison of standard Retrieval-Augmented Generation (left) and KG-constrained decoding (right).}
     \label{fig:rag_vs_constrained}
 \end{figure}
 
@@ -1104,26 +1139,49 @@ Equation~\eqref{eq:logitmask}. The threshold $\tau$ is the key hyperparameter
 controlling the precision-recall tradeoff of the relevance filter; its selection
 procedure is described in Chapter~3 and evaluated in Chapter~4.
 
-\begin{figure}[H]
+\begin{figure}[t]
     \centering
-    % -----------------------------------------------------------
-    % FIGURE PLACEHOLDER: Fig 2.12
-    % End-to-end pipeline diagram (draw.io or PowerPoint).
-    % (1) Input question q + partial generation y_{<t}
-    %     -> SBERT encoder -> query vector.
-    % (2) Candidate KG path p (as text string)
-    %     -> same SBERT encoder -> path vector.
-    % (3) Cosine similarity -> continuous score in [0,1].
-    % (4) Threshold tau -> binary admission decision.
-    % (5) Admitted paths -> valid set W_val^DCA(t).
-    % (6) Valid set -> binary mask m_t -> applied to LLM logits.
-    % Connects semantic scorer to logit-masking framework.
-    % -----------------------------------------------------------
-    \fbox{\parbox{0.85\textwidth}{\centering\vspace{3cm}
-            [Figure 2.12: Semantic scoring and admission pipeline. Six stages from
-                question input to binary logit mask, connecting
-                Equations~\eqref{eq:score} and~\eqref{eq:logitmask}.]
-            \vspace{3cm}}}
+    \resizebox{\textwidth}{!}{
+        \begin{tikzpicture}[>=latex, font=\sffamily\small]
+            % Styles
+            \tikzstyle{data} = [draw=none, fill=gray!10, rounded corners, inner sep=6pt, align=center]
+            \tikzstyle{func} = [draw, rectangle, rounded corners, minimum height=1cm, minimum width=2cm, align=center, fill=blue!5]
+            \tikzstyle{score} = [draw=none, fill=green!10, rounded corners, inner sep=6pt, align=center]
+
+            % Nodes
+            \node[data] (inputs1) at (0, 1.5) {Question $q$ \\ + Prefix $y_{<t}$};
+            \node[data] (inputs2) at (0, -1.5) {Candidate path $p$ \\ (Text string)};
+
+            \node[func] (enc1) at (3.5, 1.5) {SBERT \\ Encoder};
+            \node[func] (enc2) at (3.5, -1.5) {SBERT \\ Encoder};
+
+            \node[func, fill=purple!10] (cosim) at (7, 0) {Cosine \\ Similarity};
+            \node[score] (scoreval) at (10, 0) {Score \\ $\in [-1, 1]$};
+
+            \node[func, fill=orange!10] (thresh) at (13, 0) {Threshold $\tau$ \\ ($\ge \tau$)};
+
+            \node[data, fill=teal!10] (valid) at (16.5, 0) {Admitted paths \\ $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$};
+            \node[data, fill=red!10] (mask) at (16.5, -2) {Binary logit mask \\ $\alpha_t \in \{0, -\infty\}$};
+
+            % Edges
+            \draw[->, thick] (inputs1) -- (enc1);
+            \draw[->, thick] (inputs2) -- (enc2);
+
+            \draw[->, thick] (enc1) -| node[above, pos=0.25, font=\scriptsize] {Query vector} (cosim);
+            \draw[->, thick] (enc2) -| node[below, pos=0.25, font=\scriptsize] {Path vector} (cosim);
+
+            \draw[->, thick] (cosim) -- (scoreval);
+            \draw[->, thick] (scoreval) -- (thresh);
+            \draw[->, thick] (thresh) -- node[above, font=\scriptsize] {Yes} (valid);
+
+            \draw[->, thick, dashed] (valid) -- (mask);
+
+            % Grouping box
+            \draw[dashed, gray] (2.2, 2.5) rectangle (4.8, -2.5);
+            \node[gray, anchor=south, font=\scriptsize\itshape] at (3.5, 2.5) {Shared Weights: all-MiniLM-L6-v2};
+
+        \end{tikzpicture}
+    }
     \caption{End-to-end semantic scoring and binary admission pipeline.}
     \label{fig:scoringpipeline}
 \end{figure}
@@ -1232,20 +1290,15 @@ property directly.
 \label{sec:synthesis}
 % -----------------------------------------------------------------------------
 
-This section distils the entire chapter into three precise gap statements and
-maps each to a DCA-Trie component and project objective.
+This section synthesises the findings of the literature review by formalising
+three distinct research gaps. Each limitation is then explicitly mapped to a
+proposed component of the DCA-Trie architecture and its corresponding project
+objective, establishing the foundation for the methodology detailed in Chapter~3.
 
 \subsection{Three Unresolved Gaps at the Intersection of Structural Faithfulness,
     Semantic Relevance, and Constraint Measurability}
 
-\textbf{Gap~1: The Permissiveness Problem.} GCR and DoG construct constraint
-oracles as $f(\mathcal{G}, \mathcal{E}_q)$, independent of question semantics
-and partial generation. For a three-hop CWQ question, Equation~\eqref{eq:pathgrowth}
-shows this produces a valid token set containing up to 24,000 structurally
-correct but semantically irrelevant paths, forcing the LLM to use
-hallucination-prone parametric knowledge for discrimination, precisely the
-mechanism constrained decoding was designed to suppress \citep{luo2024gcr,
-    li2024dog}.
+\textbf{Gap~1: The Permissiveness Problem.} GCR and DoG construct constraint oracles as $f(\mathcal{G}, \mathcal{E}_q)$, independent of question semantics and partial generation. For a three-hop CWQ question, Equation~\eqref{eq:pathgrowth} shows this produces a valid token set containing up to 24,000 structurally correct but semantically irrelevant paths, forcing the LLM to use hallucination-prone parametric knowledge for discrimination, precisely the mechanism constrained decoding was designed to suppress \citep{luo2024gcr,li2024dog}.
 
 \textbf{Gap~2: The Static-Dynamic Efficiency Tradeoff.} GCR's precomputed
 static trie is computationally efficient but semantically blind. DoG's step-wise
@@ -1259,24 +1312,6 @@ quantifies constraint permissiveness independently of downstream answer accuracy
 making it impossible to measure progress on reducing irrelevant paths in the valid
 set directly or to compare frameworks on this property \citep{luo2024gcr,
     li2024dog}.
-
-\begin{figure}[H]
-    \centering
-    % -----------------------------------------------------------
-    % FIGURE PLACEHOLDER: Fig 2.14
-    % Gap matrix table (draw.io or LaTeX table; see Table 2 below).
-    % Rows: GCR, DoG, DCA-Trie v1 (proposed), DCA-Trie v2 (proposed).
-    % Columns: Structural Faithfulness (100%), Semantic Relevance
-    %   Conditioning (Y/N), Dynamic Step-Wise Update (Y/N),
-    %   Precomputed Oracle Efficiency (Y/N),
-    %   Permissiveness Quantified via SIR (Y/N).
-    % -----------------------------------------------------------
-    \fbox{\parbox{0.85\textwidth}{\centering\vspace{2cm}
-            [Figure 2.14: Consolidated gap matrix; see Table~\ref{tab:gaps}.]
-            \vspace{2cm}}}
-    \caption{Consolidated gap matrix.}
-    \label{fig:gapmatrix}
-\end{figure}
 
 \begin{table}[H]
     \centering
@@ -1314,25 +1349,6 @@ DCA-Trie is the first constrained decoding framework to simultaneously address
 all three gaps, providing structural faithfulness, semantic relevance
 conditioning, and a dedicated permissiveness metric. These constitute the three
 novel contributions of this dissertation.
-
-\begin{figure}[H]
-    \centering
-    % -----------------------------------------------------------
-    % FIGURE PLACEHOLDER: Fig 2.15
-    % Contribution mapping table (draw.io or LaTeX table;
-    % see Table 3 below).
-    % Four columns: Research Gap | DCA-Trie Component |
-    %   Project Objective | Evaluated In Chapter.
-    % Three rows: Gap 1, Gap 2, Gap 3.
-    % Navy shading on DCA-Trie Component column.
-    % -----------------------------------------------------------
-    \fbox{\parbox{0.85\textwidth}{\centering\vspace{2cm}
-            [Figure 2.15: DCA-Trie contribution mapping; see
-                Table~\ref{tab:contributions}.]
-            \vspace{2cm}}}
-    \caption{Mapping of each identified research gap.}
-    \label{fig:contributions}
-\end{figure}
 
 \begin{table}[H]
     \centering
