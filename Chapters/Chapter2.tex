@@ -609,8 +609,7 @@ toward this answer.
     \label{fig:logitmask}
 \end{figure}
 
-\subsection{Grammar-Constrained Decoding: GCD and Outlines as Foundational
-    Format Constraints}
+\subsection{Grammar-Constrained Decoding: GCD and Outlines as Foundational Format Constraints}
 
 \citet{geng2023gcd} introduce Grammar-Constrained Decoding (GCD), which
 constrains generation to strings conforming to a context-free grammar by
@@ -618,7 +617,7 @@ using an Earley parser as the constraint oracle. \citet{willard2023outlines}
 introduce Outlines, which achieves the same goal for regular-expression and
 JSON-schema constraints via finite-state automata. Both works establish the
 critical efficiency insight that the constraint structure can be precomputed
-offline, as parse states or automaton transitions, and queried in amortised
+offline, as parse states or automaton transitions, and queried in amortized
 constant time at each inference step. This precomputation insight is central to
 DCA-Trie v1, which preserves it through static semantic filtering at trie
 construction time.
@@ -661,8 +660,7 @@ path format while remaining semantically blind to the question. The transition
 from format constraints to knowledge-graph content constraints is the next step
 in the progression.
 
-\subsection{Graph-Constrained Reasoning (GCR): Structural Faithfulness via
-    KG-Trie Oracles}
+\subsection{Graph-Constrained Reasoning (GCR): Structural Faithfulness via KG-Trie Oracles}
 
 Graph-Constrained Reasoning (GCR; \citealt{luo2024gcr}) is the primary baseline
 for this dissertation and represents the state of the art in KG-constrained
@@ -787,7 +785,7 @@ of its relevance to $q$ or to the partial generation $y_{<t}$. The permissivenes
 problem therefore persists: the number of paths in the valid set may remain in
 the thousands at every step. Second, DoG sacrifices the computational efficiency
 of precomputed trie structures identified by \citet{willard2023outlines}: because
-the trie must be rebuilt at each step, the amortised per-step query cost of
+the trie must be rebuilt at each step, the amortized per-step query cost of
 precomputed structures is forfeited.
 
 DCA-Trie addresses both limitations simultaneously. The DCA-Trie v2 expansion
@@ -876,8 +874,7 @@ score, is the core algorithmic contribution of DCA-Trie v2.
 \end{figure}
 
 % -----------------------------------------------------------------------------
-\section{Beam Search Decoding and Prefix-Tree Constraint Integration: Mechanics,
-  Efficiency, and the Step-Wise Constraint Problem}
+\section{Beam Search Decoding and Prefix-Tree Constraint Integration: Mechanics, Efficiency, and the Step-Wise Constraint Problem}
 \label{sec:beam}
 % -----------------------------------------------------------------------------
 
@@ -889,8 +886,7 @@ can be followed. This section provides that foundation.
 \subsection{Beam Search: Approximate Global Optimization Over Autoregressive
     Sequences}
 
-Beam search is the standard approximate decoding algorithm for autoregressive
-sequence generation \citep{holtzman2020curious}. The algorithm maintains a
+Beam search is the standard approximate decoding algorithm for autoregressive sequence generation \citep{holtzman2020curious}. The algorithm maintains a
 \textit{beam} (a set of $k$ partial sequences) at each generation step. At
 step $t$, every beam hypothesis is expanded by every vocabulary token, masked
 logit scores are computed, and only the top-$k$ hypotheses by cumulative
@@ -925,7 +921,7 @@ A prefix tree (trie; \citealt{fredkin1960trie}) over KG paths supports $O(d)$
 lookup at each generation step: given the current partial sequence $y_{<t}$, the
 set of valid next tokens is exactly the set of children of the current trie node.
 This is the efficiency insight of \citet{willard2023outlines}: precomputing the
-trie amortises the constraint lookup cost across all generation steps, making
+trie amortizes the constraint lookup cost across all generation steps, making
 constrained decoding practical at inference time. The trie construction
 complexity is $O(|\mathcal{P}| \times L)$, where $|\mathcal{P}|$ is the number
 of valid paths encoded and $L$ is the maximum path length.
@@ -944,9 +940,10 @@ smaller than $|\mathcal{N}_t|$ in DoG.
 
 \begin{figure}[H]
     \centering
-    \includegraphics{Figures/beam_search_trie_diagram (1).png}
+    \resizebox{\textwidth}{!}{\includegraphics{Figures/fig2_9.png}}
     \caption{Interaction between prefix-tree constraint lookup and beam search expansion.}
     \label{fig:beamtrie}
+    {\small \emph{Image by Authors}}
 \end{figure}
 
 
@@ -982,8 +979,7 @@ three conditions constitute the formal specification of DCA-Trie, evaluated
 quantitatively in Chapter~4.
 
 % -----------------------------------------------------------------------------
-\section{Retrieval-Augmented Generation: Architectural Variants, KG-Augmented
-  Approaches, and the Hard Limit of Soft Grounding}
+\section{Retrieval-Augmented Generation: Architectural Variants, KG-Augmented Approaches, and the Hard Limit of Soft Grounding}
 \label{sec:rag}
 % -----------------------------------------------------------------------------
 
@@ -1132,8 +1128,7 @@ guarantee structural faithfulness.
     \label{fig:rag_vs_constrained}
 \end{figure}
 
-\subsection{The Formal Impossibility of Structural Faithfulness Under Soft
-    Grounding}
+\subsection{The Formal Impossibility of Structural Faithfulness Under Soft Grounding}
 
 The following argument establishes that no retrieval-augmented approach can
 provide structural faithfulness guarantees as defined in this dissertation.
@@ -1343,31 +1338,30 @@ procedure is described in Chapter~3 and evaluated in Chapter~4.
 \label{sec:related}
 % -----------------------------------------------------------------------------
 
-Sections~\ref{sec:hallucination}--\ref{sec:sbert} have surveyed the landscape
-thematically. This section positions DCA-Trie against the specific papers a
-reviewer is most likely to cite as prior art.
+Sections~\ref{sec:hallucination}--\ref{sec:sbert} surveyed the landscape thematically. This section situates DCA-Trie within the most relevant prior work likely to be cited as baseline literature.
 
-\subsection{KG-Constrained Decoding: GCR, DoG, and the Unresolved
-    Permissiveness Problem}
+\subsection{KG-Constrained Decoding: GCR, DoG, and the Unresolved Permissiveness Problem}
 
-GCR \citep{luo2024gcr} constructs a static KG-Trie from $f(\mathcal{G},
-    \mathcal{E}_q)$ before generation, achieving 92.6 Hits@1 on WebQSP and 100\%
-structural faithfulness; however, the valid token set is semantically blind and
-computationally identical at every generation step (Section~\ref{sec:constrained}).
-DoG \citep{li2024dog} extends GCR with step-wise topological trie expansion
-after each committed entity, improving dynamic responsiveness at the cost of
-per-step reconstruction; but as shown in Equation~\eqref{eq:dog}, the expansion
-rule admits all KG neighbours regardless of semantic relevance, so the
-permissiveness problem persists. Both works leave unresolved the central
-limitation: the valid token set contains thousands of structurally correct but
-contextually irrelevant paths at every generation step, forcing the LLM to rely
-on hallucination-prone parametric knowledge for semantic discrimination. DCA-Trie
-addresses this directly by conditioning the valid token set on the input question
-semantics and the partial generation, formally upgrading the oracle from
-$f(\mathcal{G}, \mathcal{E}_q)$ to $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$
-(Equation~\ref{eq:dcareq}). DCA-Trie is designed as a direct extension of GCR
-and DoG, preserving their structural faithfulness guarantee while resolving the
-permissiveness problem neither addresses.
+GCR \citep{luo2024gcr} constructs a static KG-Trie from
+$f(\mathcal{G}, \mathcal{E}_q)$ before generation, reporting 92.6 Hits@1 on
+WebQSP and 100\% structural faithfulness. Its valid token set, however, is
+semantically blind and computationally unchanged across generation steps
+(Section~\ref{sec:constrained}). DoG \citep{li2024dog} makes the oracle dynamic,
+$f(\mathcal{G}, \mathcal{E}_q, t)$, by expanding the trie after each committed
+entity; this yields 90.99 Hits@1 on WebQSP and 76.08 on CWQ with 100\%
+structural faithfulness, but still without semantic conditioning and without
+precomputation. As shown in Equation~\eqref{eq:dog}, DoG expansion remains
+semantically blind because it admits KG neighbors regardless of relevance.
+
+The proposed DCA-Trie variants in Table~\ref{tab:related_work} are positioned
+to address this specific gap at the token-constraint level. DCA-Trie v1 applies
+question-conditioned semantic filtering in a static precomputed oracle,
+$f(\mathcal{G}, \mathcal{E}_q, q)$. DCA-Trie v2 further adds step-wise
+conditioning on partial generation,
+$f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$, with partial precomputation. In
+both variants, semantic conditioning is incorporated into the hard constraint
+itself while preserving the structural-faithfulness guarantee by construction;
+their Hits@1 values remain TBD in this chapter.
 
 
 \begin{table}[H]
@@ -1454,15 +1448,13 @@ RouterKGQA's semantic filtering operates on complete reasoning paths after gener
 Furthermore, DCA-Trie introduces the \textbf{Semantic Irrelevance Ratio (SIR)}, the first metric to isolate and quantify constraint permissiveness independently of downstream generation accuracy. RouterKGQA does not provide a direct measure of how many structurally valid but semantically irrelevant paths enter its candidate set; DCA-Trie's SIR metric fills this evaluation gap.
 
 % -----------------------------------------------------------------------------
-\section{Synthesis of the Literature: Three Unresolved Gaps and the DCA-Trie
-  Contribution}
+\section{Synthesis of the Literature: Three Unresolved Gaps and the DCA-Trie Contribution}
 \label{sec:synthesis}
 % -----------------------------------------------------------------------------
 
 This section synthesizes the findings of the literature review by formalizing three distinct research gaps. Each limitation is then explicitly mapped to a proposed component of the DCA-Trie architecture and its corresponding project objective, establishing the foundation for the methodology detailed in Chapter~3.
 
-\subsection{Three Unresolved Gaps at the Intersection of Structural Faithfulness,
-    Semantic Relevance, and Constraint Measurability}
+\subsection{Three Unresolved Gaps at the Intersection of Structural Faithfulness, Semantic Relevance, and Constraint Measurability}
 
 \textbf{Gap~1: The Permissiveness Problem.} GCR and DoG construct constraint oracles as $f(\mathcal{G}, \mathcal{E}_q)$, independent of question semantics and partial generation. For a three-hop CWQ question, Equation~\eqref{eq:pathgrowth} shows this produces a valid token set containing up to 24,000 structurally correct but semantically irrelevant paths, forcing the LLM to use hallucination-prone parametric knowledge for discrimination, precisely the mechanism constrained decoding was designed to suppress \citep{luo2024gcr,li2024dog}.
 
