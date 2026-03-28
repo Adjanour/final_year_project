@@ -1,0 +1,1526 @@
+% =============================================================================
+% CHAPTER 2: LITERATURE REVIEW
+% =============================================================================
+
+\chapter{Literature Review}
+\section{Introduction}
+
+Large Language Models (LLMs) have fundamentally transformed natural language processing by demonstrating unprecedented fluency and reasoning capabilities. However, their deployment in knowledge-intensive domains, where factual reliability is a strict prerequisite rather than a desirable trait, remains severely constrained. In contexts such as automated reasoning, medical diagnostics, and structured data querying, AI systems must do more than approximate plausible answers; they must ground their outputs in deterministically verifiable knowledge.
+
+The foundational challenge hindering this adoption is hallucination: the generation of fluent but factually incorrect or unsupported claims. Because these models generate text autoregressively over an unconstrained vocabulary, they lack a built-in mechanism to ensure structural faithfulness to an external factual source. While current mitigation strategies, including chain-of-thought prompting and soft retrieval augmentation, significantly improve empirical accuracy, they fundamentally fail to provide hard, mathematical guarantees against hallucinated reasoning steps.
+
+To address these challenges, this chapter examines existing research on these vulnerabilities and explores the progression of constrained decoding architectures designed to solve them. By doing so, it establishes the theoretical foundations for the Dynamic Context-Aware Trie (DCA-Trie). The review is structured around nine thematic pillars. First, Sections~\ref{sec:hallucination} and~\ref{sec:cot} formalize the problem by diagnosing hallucination's structural causes and exposing the faithfulness ceiling of unconstrained multi-step reasoning. Section~\ref{sec:kgqa} establishes the technical domain in which DCA-Trie operates: knowledge graph question answering and the mechanics of multi-hop inference. Sections~\ref{sec:constrained} and~\ref{sec:beam} form the methodological core, tracing the evolution of constrained decoding paradigms, from foundational logit masking to leading graph-specific implementations like GCR and DoG, and analyzing their interaction with beam search. Section~\ref{sec:rag} examines retrieval-augmented generation to formally prove why soft grounding falls short of structural faithfulness, while Section~\ref{sec:sbert} justifies the sentence transformer embeddings used as the semantic relevance scorer at the heart of DCA-Trie. Finally, Sections~\ref{sec:related} and~\ref{sec:synthesis} position this work against specific prior art and synthesize three unresolved research gaps that this project directly answers.
+
+% -----------------------------------------------------------------------------
+\section{Hallucination in Large Language Models: Taxonomy, Structural Causes,
+  and the Scaling Paradox}
+\label{sec:hallucination}
+% -----------------------------------------------------------------------------
+
+This section explores the root cause of the problem DCA-Trie sets out to solve. Rather than treating hallucination as a simple bug that can be patched, we examine it as a fundamental consequence of how autoregressive language models operate, meaning its elimination requires direct external constraints. To conclude, the section addresses a common counterargument, explaining why simply scaling up to larger models does not make these constraint mechanisms unnecessary.
+
+\subsection{Defining Hallucination: A Formal Taxonomy for Knowledge-Intensive
+    Generation}
+
+\citet{ji2023survey} define hallucination in natural language generation as the
+production of content that is fluent and internally coherent yet factually
+unsupported by, or in outright contradiction with, any verifiable source.
+\citet{huang2023survey} refine this definition into a two-part taxonomy that
+is foundational to the present work. \textit{Intrinsic hallucination} occurs
+when the model output directly contradicts material that is explicitly present in
+the provided source context. \textit{Extrinsic hallucination} occurs when the
+output contains claims that cannot be verified against any provided or
+accessible external source, even if those claims are not outright contradictions.
+
+When applied to the specific domain of knowledge graph question answering (KGQA), this two-part taxonomy translates into highly concrete, operational definitions. Intrinsic hallucination in KG-constrained generation means generating a triplet $(e, r, e')$ that does not exist as a verified fact in the knowledge graph $\mathcal{G}$. Extrinsic hallucination means generating a multi-hop reasoning chain that cannot be traced to any verified path in $\mathcal{G}$, regardless of whether each individual generated token seems plausible in isolation. Both forms are unacceptable for safety-critical or knowledge-intensive applications, where factual reliability is a hard requirement rather than a desirable property. The severity of the problem is underscored by the observation in \citet{luo2024gcr} that even leading knowledge-graph-enhanced reasoning methods, such as the RoG framework, still produce hallucinated reasoning steps in approximately 33\% of cases. This single finding constitutes the strongest empirical justification for hard constraint mechanisms over soft grounding approaches.
+
+\subsection{The Autoregressive Generation Process as the Structural Root of Hallucination}
+
+Crucially, hallucination should not be viewed as a mere technical anomaly or a transient issue that can be easily trained away; rather, it is a fundamental architectural consequence of the autoregressive generation mechanism itself. At each generation step $t$, an autoregressive LLM computes a probability distribution over the full vocabulary conditioned on
+the input prompt $x$ and all previously generated tokens $y_{<t} = (y_1, \ldots,
+    y_{t-1})$:
+\begin{equation}
+    P(y_t \mid y_{<t},\, x)
+    \label{eq:autoregressive}
+\end{equation}
+
+Three structural observations follow directly from this formulation \citep{brown2020gpt3, huang2023survey, ji2023survey}. First, no term in Equation~\eqref{eq:autoregressive} encodes a factual verification check: the distribution is computed entirely from learned weights and the conditioning context, with no mechanism for querying an external ground-truth source. Second,
+because $y_{<t}$ conditions all future steps, an error introduced at step $t-1$
+propagates forward as part of the conditioning context for every subsequent
+token, producing grammatically fluent continuations whose factual incorrectness
+has no surface signal distinguishable from a correct chain. Third, the
+distribution is defined over the full vocabulary $\mathcal{V}$; every token has
+strictly positive probability at every step. The consequence is that structural
+hallucination is not a low-probability edge case; it is an ever-present
+possibility at every decoding step, and the fluency of the generated text
+provides no diagnostic signal that an error has occurred.
+
+\subsection{The Scaling Paradox: Why Larger Models Do Not Solve Hallucination}
+
+A natural and frequently encountered objection to constraint-based approaches is that sufficiently large models, or those trained with reinforcement learning from human feedback (RLHF), should be factually reliable enough to render hard constraints unnecessary. The evidence does not support this objection, and establishing this point is essential for a principled motivation of DCA-Trie. \citet{lin2022truthfulqa} introduce TruthfulQA, a benchmark designed to measure whether models generate truthful answers by targeting questions that elicit common human misconceptions. Their central finding is that larger models do not systematically outperform smaller models on truthfulness and that, for certain question categories, truthfulness accuracy actually decreases with scale, a phenomenon termed \textit{inverse scaling}. This occurs because larger models natively become better at memorising and reproducing the false but highly prevalent misconceptions present in their training data.
+
+As illustrated schematically in Figure~\ref{fig:scaling}, Truthfulness accuracy explicitly exhibits inverse scaling across base language models such as the GPT-3 and GPT-Neo families. Unconstrained language modeling performance fails to improve monotonically with parameter count and instead regresses robustly into the inverse-scaling region. By contrast, models explicitly fine-tuned on QA tasks (such as UnifiedQA) exhibit positive scaling, demonstrating that scaling standard autoregressive imitation alone inherently penalizes factual reasoning.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \pgfplotsset{set layers}
+        \begin{axis}[
+                width=1.0\textwidth,
+                height=8cm,
+                xmode=log,
+                log ticks with fixed point,
+                xlabel={Model Parameter Count (billions, log scale)},
+                ylabel={Truthfulness (\% True + Informative)},
+                xmin=0.04, xmax=250,
+                ymin=10, ymax=60,
+                xtick={0.1, 1, 10, 100},
+                ytick={10, 20, 30, 40, 50, 60},
+                grid=major,
+                grid style={dashed, gray!30},
+                legend pos=north west,
+                legend cell align={left},
+                legend style={draw=black!20, fill=white, rounded corners=0.5ex, font=\small},
+                title style={align=center, font=\normalsize}
+            ]
+
+            \begin{pgfonlayer}{axis background}
+                \fill[red!10] (axis cs:0.04,10) rectangle (axis cs:250,29);
+            \end{pgfonlayer}
+
+            \node[text=red!70!black, align=left, font=\small\itshape] (inversetext) at (axis cs: 2, 15) {Inverse-scaling\\regime};
+            \draw[-stealth, thick, red!70!black] (inversetext) -- (axis cs: 6.7, 21);
+
+            % GPT-3 family
+            \addplot[
+                color=cyan!70!black,
+                mark=*,
+                solid,
+                line width=1.5pt,
+                mark options={scale=1.5}
+            ] coordinates {
+                    (0.35, 28)
+                    (1.3, 26)
+                    (6.7, 23)
+                    (175, 21)
+                };
+            \addlegendentry{GPT-3 (Base)}
+
+            % GPT-Neo/J family
+            \addplot[
+                color=red!70!black,
+                mark=square*,
+                dashed,
+                line width=1.5pt,
+                mark options={scale=1.5}
+            ] coordinates {
+                    (0.125, 27)
+                    (1.3, 24)
+                    (2.7, 22)
+                    (6.0, 20)
+                };
+            \addlegendentry{GPT-Neo/J}
+
+            % UnifiedQA family
+            \addplot[
+                color=green!60!black,
+                mark=triangle*,
+                dotted,
+                line width=1.5pt,
+                mark options={scale=1.5}
+            ] coordinates {
+                    (0.06, 17)
+                    (0.22, 31)
+                    (0.77, 41)
+                    (3.0, 48)
+                    (11.0, 54)
+                };
+            \addlegendentry{UnifiedQA}
+
+        \end{axis}
+        \node[anchor=north east, font=\tiny\color{gray}, inner sep=0pt] at (current bounding box.south east) [yshift=-2mm] {Source: Lin et al. (2022) Figure 1 data approximation.};
+    \end{tikzpicture}
+    \caption{Relationship between model scale and truthfulness on the TruthfulQA benchmark.}
+    \label{fig:scaling}
+\end{figure}
+
+The sycophancy problem identified by \citet{perez2022sycophancy} compounds this picture. RLHF-tuned models are trained to produce outputs aligned with user preferences; since users tend to rate confident and fluent responses favorably, larger RLHF-tuned models are more likely to generate confident-sounding but factually incorrect statements that match expected answers rather than true ones. Confidence and accuracy are thus decoupled by the very training procedure that was supposed to improve model reliability. \citet{kandpal2023large} identify a further limitation through the memorisation-generalisation tension: larger models memorize more training data and therefore perform better on factual recall tasks involving frequently seen entity combinations, but they do not improve on compositional multi-hop questions that require systematic reasoning over entity combinations unseen during training. that require systematic reasoning over entity combinations unseen during training. Knowledge graph question answering is precisely this kind of task: the correct answer to a novel three-hop question requires chaining entities and relations in a configuration that almost certainly did not appear as a single training example. \citet{mallen2023not} corroborate this by showing that even GPT-4 hallucinates at a non-trivial rate on questions involving tail entities with low training-set frequency, regardless of the model's overall capability.
+
+These findings collectively demonstrate that hallucination in large language models is not a limitation of scale, but a fundamental structural flaw. Autoregressive generation inherently lacks a mechanism to ground generated tokens in verifiable external sources, an absence that cannot be resolved simply by increasing parameter counts. The following sections review approaches that attempt to address this limitation, progressing from soft grounding via retrieval augmentation to the hard constraint mechanisms that motivate this dissertation.
+
+% -----------------------------------------------------------------------------
+\section{Chain-of-Thought Reasoning, Self-Consistency, and the Faithfulness
+  Ceiling of Unconstrained Multi-Step Generation}
+\label{sec:cot}
+% -----------------------------------------------------------------------------
+
+A natural question often arises when evaluating large language models: if chain-of-thought prompting already yields such significant improvements in multi-step reasoning, why do we need constrained decoding at all? The answer developed in this section is that while chain-of-thought and its extensions improve reasoning \textit{accuracy in expectation}, they cannot offer a \textit{structural faithfulness guarantee}, the exact property that DCA-Trie is designed to provide. Recognizing this distinction is essential, as it highlights why prompting alone is insufficient and why constrained decoding remains fundamentally necessary.
+
+\subsection{Chain-of-Thought Prompting: Eliciting Step-by-Step Reasoning from LLMs}
+
+Chain-of-thought (CoT) prompting, introduced by \citet{wei2022cot}, is the dominant paradigm for improving multi-step reasoning in large language models. The mechanism is straightforward: by including worked examples in the prompt that show intermediate reasoning steps leading to the final answer, the model learns to produce its own intermediate steps before giving a final answer to a new
+question. This shifts the model from direct answer prediction to the decomposition of complex problems into a chain of simpler sub-problems, each resolved in sequence. \citet{wei2022cot} show that this ability is emergent: it is negligible in models below approximately 100 billion parameters and arises
+sharply beyond this threshold. Empirically, CoT prompting yields substantial improvements on mathematical reasoning benchmarks such as GSM8K and MATH, as well as on multi-hop question answering tasks, in comparison with direct prompting baselines.
+
+Formally, a CoT output for a given question $x$ is structured as a sequence of intermediate reasoning steps followed by a final answer:
+
+\begin{equation}
+    \bigl(r_1,\, r_2,\, \ldots,\, r_k,\, a\bigr)
+    \label{eq:cot}
+\end{equation}
+
+where $r_i$ denotes each intermediate reasoning step and $a$ is the final answer. The language model generates each step autoregressively, using the same probabilistic mechanism described in Equation~\eqref{eq:autoregressive}:
+\[
+    P(r_i \mid r_{<i},\, x)
+\]
+The intrinsic limitation of this approach is immediately apparent: there is no mechanism to ensure that any given step $r_i$ corresponds to an actual, verified triplet within the knowledge graph $\mathcal{G}$. If the model hallucinates an intermediate step $r_i$, that error becomes part of the conditioning context for the next step $r_{i+1}$, cascading forward and irreparably compromising the final answer $a$. As a result, a CoT sequence can read as entirely fluent, coherent, and plausible while still containing one or more steps that lack any basis in verified facts.
+
+\subsection{Self-Consistency and Tree-of-Thought: Improving Reliability Without
+    Improving Faithfulness}
+
+Two major extensions of chain-of-thought attempt to address these reliability limitations, yet neither fundamentally resolves the structural faithfulness problem. The first, self-consistency \citep{wang2023selfconsistency}, combats the high variability of individual CoT chains by sampling multiple independent reasoning paths and selecting the most frequent final answer (majority voting). This approach effectively marginalizes out anomalous reasoning errors and substantially boosts accuracy on benchmarks like GSM8K and multi-hop QA. However, it still falls short of providing a hard guarantee: there is no assurance that any single sampled chain is fully grounded in verified knowledge graph facts. It is entirely possible — especially for deep, multi-hop questions where error probabilities compound — for a majority of independently generated chains to all suffer from hallucinations, resulting in an incorrect majority-vote answer.
+
+The second major extension, Tree-of-Thought \citep{yao2023tree}, takes a more structured approach by framing the generation process as a search over a tree of partial reasoning steps. It uses the language model as both the generator of new steps and the evaluator that scores and prunes unpromising branches. This deliberate, planning-oriented approach significantly improves performance on complex tasks that require backtracking. Ultimately, however, Tree-of-Thought operates entirely within the model's own parametric knowledge: the node scoring and pruning decisions are made by the same system generating the steps, without ever querying an external, verified knowledge graph.
+
+The decisive observation for both of these prompting-based methods is that they can only reduce the \textit{statistical probability} of hallucinated reasoning; they cannot actually guarantee a zero-hallucination output. This is because neither method alters the fundamental token-level generation mechanism. At any given step, the valid token set remains the entire vocabulary $\mathcal{V}$, and every token retains a strictly positive probability of being selected. This highlights the critical distinction introduced by constrained decoding, which enforces absolute structural faithfulness by setting the probability of every invalid token to exactly zero.
+
+\begin{table}[H]
+    \centering
+    \caption{Comparison of chain-of-thought family methods and KG-constrained
+        decoding.}
+    \label{tab:cot_vs_constrained}
+    \resizebox{\textwidth}{!}{
+        \begin{gridtabular}{l|c|c|c|c}
+            \gr{\textbf{Method}                                  & \textbf{Multi-hop Acc.}  & \textbf{Faithfulness Guarantee} &
+                \textbf{Ext.\ Verification}                      & \textbf{Parametric Reliance}}
+            \gr{Chain-of-Thought \citep{wei2022cot}              & High                     & No                              & No  & High}
+            \gr{Self-Consistency \citep{wang2023selfconsistency} & High                     & No                    & No  & High}
+            \gr{Tree-of-Thought \citep{yao2023tree}              & High                     & No                    & No  & High}
+            \gr{KG-Constrained Decoding                          & High                     & Yes                   & Yes & Low}
+        \end{gridtabular}
+    }
+\end{table}
+
+\subsection{The Faithfulness Ceiling: The Mathematical Limits of Prompting}
+
+The fundamental inadequacy of prompting arises directly from its probabilistic formulation. All prompting strategies, whether relying on few-shot examples, chain-of-thought decomposition, self-consistency aggregation, or tree-structured search, operate strictly by modifying the \textit{input} provided to the language model. While this favorably shifts the probability distribution toward correct sequences, it leaves the underlying autoregressive generation mechanism entirely untouched. Because decoding still occurs over the unrestricted vocabulary $\mathcal{V}$, every token technically retains a strictly positive probability of being sampled at any given step.
+
+True structural faithfulness, defined as the absolute guarantee that every generated token forms part of a verified knowledge graph path, requires that all invalid tokens be assigned a probability of \textit{exactly} zero. This cannot be accomplished at the prompt level; it necessitates a fundamental intervention in the decoding algorithm itself, which is precisely the function of constrained decoding \citep{geng2023gcd, willard2023outlines}.
+
+As formally distinguished by \citet{geng2023gcd} and \citet{willard2023outlines}, prompting acts as a \textit{soft influence}, whereas constrained decoding operates as a \textit{hard mechanism}. While intelligent prompting can significantly elevate factual accuracy in expectation, only constrained decoding can guarantee structural faithfulness with a probability of one.
+
+% -----------------------------------------------------------------------------
+\section{Knowledge Graph Question Answering: Structured Reasoning, Benchmark
+  Design, and the Exponential Complexity of Multi-Hop Inference}
+\label{sec:kgqa}
+% -----------------------------------------------------------------------------
+
+This section establishes the technical domain in which the DCA-Trie framework operates. The principles and structural constraints introduced here provide the foundational rationale for the architectural design decisions detailed in Chapter 3.
+
+\subsection{Knowledge Graphs as Structured Repositories of Verified Facts:
+    Formal Definition and Properties}
+
+A knowledge graph is formally defined as a directed labelled graph
+$\mathcal{G} = (\mathcal{E},\, \mathcal{R},\, \mathcal{T})$, where
+$\mathcal{E}$ is the set of entities, $\mathcal{R}$ is the set of relation
+types, and $\mathcal{T} \subseteq \mathcal{E} \times \mathcal{R} \times
+    \mathcal{E}$ is the set of verified factual triplets. A standard concrete
+example from Freebase \citep{bollacker2008freebase} is the triplet
+$(\textit{Marie Curie},\, \textit{award\_received},\,
+    \textit{Nobel\_Prize\_in\_Physics})$, which logically connects two entities via a directed relation.
+
+Freebase encodes tens of millions of such triplets spanning geography, history,
+entertainment, and science. It serves as the underlying factual resource for
+both benchmark datasets evaluated in this work: WebQSP \citep{yih2016value} and
+ComplexWebQuestions \citep{talmor2018web}. Given an initial entity $e_0$, a multi-hop reasoning path of length $L$ within $\mathcal{G}$ is represented as the sequence:
+
+\begin{equation}
+    p = (e_0,\, r_1,\, e_1,\, r_2,\, e_2,\, \ldots,\, r_L,\, e_L)
+    \label{eq:kgpath}
+\end{equation}
+
+where each consecutive step $(e_{i-1},\, r_i,\, e_i)$ forms a valid triplet within $\mathcal{T}$. In the context of KGQA, the correct answer to a multi-hop question $q$ corresponds to the terminal entity $e_L$ of a specific, structurally sound path $p$. This formalization is load-bearing throughout this dissertation: the structural faithfulness guarantee encoded by DCA-Trie strictly mandates that every generated sequence inherently forms a valid prefix of some defined path $p$ within $\mathcal{G}$.
+
+The critical distinction between a structured KG and an unstructured text corpus is that every triplet in $\mathcal{T}$ is human-verified, machine-readable, and unambiguously delineated. This innate topology enables KG-constrained generation to operate in a manner entirely distinct from standard retrieval augmentation (RAG). Rather than relying on a probabilistic semantic similarity search against raw text, a constraint oracle can systematically verify any candidate token against $\mathcal{G}$ via precise, deterministic graph lookups.
+
+\subsubsection{Concrete Example: A Knowledge Graph Subgraph from Freebase}
+
+To make the formal definition concrete, consider a small subgraph extracted from Freebase. Figure~\ref{fig:kg_example} illustrates a directed graph with six entity nodes connected by five labelled relation edges. Each edge represents a
+single verified triplet $(e, r, e') \in \mathcal{T}$. For instance, the triplet $(\textit{Blue\_Hawaii},\, \textit{film.film.featured\_film\_location},\,\textit{Hawaii})$ encodes the fact that the film ``Blue Hawaii'' was filmed
+in Hawaii. A valid multi-hop reasoning path through this subgraph might be:
+\resizebox{0.98\textwidth}{!}{$
+        \displaystyle
+        (\textit{Blue\_Hawaii},\, \textit{film.film.featured\_film\_location},\,
+        \textit{Hawaii},\, \textit{location.location.adjoining\_water},\,
+        \textit{Pacific\_Ocean})
+    $}
+This path has length $L = 2$ (two hops) and terminates at the entity \textit{Pacific\_Ocean}. If a question asks ``What large body of water adjoins the location where Blue Hawaii was filmed?'', the correct answer corresponds to
+the terminal entity of this verified path. The structural faithfulness guarantee of DCA-Trie ensures that every intermediate step of the model's generated reasoning chain corresponds to an actual verified triplet in $\mathcal{T}$
+making hallucinated reasoning steps mathematically impossible.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[>=latex, node distance=2cm and 2.5cm]
+        % Define styles
+        \tikzstyle{entity} = [
+        draw=black!80,
+        fill=blue!15,
+        rounded corners=4pt,
+        thick,
+        inner sep=8pt,
+        font=\sffamily\small,
+        align=center,
+        minimum width=2cm
+        ]
+        \tikzstyle{relation_label} = [
+        font=\sffamily\scriptsize\itshape,
+        text=black,
+        align=center,
+        inner sep=2pt
+        ]
+        \tikzstyle{edge_arrow} = [
+        ->,
+        thick,
+        draw=black!70,
+        shorten >=3pt,
+        shorten <=3pt
+        ]
+        \tikzstyle{path_edge} = [
+        ->,
+        very thick,
+        draw=teal!70!black,
+        shorten >=3pt,
+        shorten <=3pt
+        ]
+
+        % Entities
+        \node[entity] (blue_hawaii) at (-2, 2) {Blue\_Hawaii\\(Film)};
+        \node[entity] (hawaii) at (4, 2) {Hawaii\\(Location)};
+        \node[entity] (pacific) at (9, 2) {Pacific\_Ocean\\(Water Body)};
+
+        \node[entity] (elvis) at (-2, -2) {Elvis\_Presley\\(Person)};
+        \node[entity] (film_genre) at (3, -2) {Musical\\(Genre)};
+        \node[entity] (director) at (8, -2) {Norman\\Taurog\\(Director)};
+
+        % Edges in the demonstrated path (highlighted)
+        \draw[path_edge] (blue_hawaii) -- node[above, relation_label]
+        {film.film.\\featured\_film\_location} (hawaii);
+        \draw[path_edge] (hawaii) -- node[above, relation_label]
+        {location.location.\\adjoining\_water} (pacific);
+
+        % Other edges (not in the main path)
+        \draw[edge_arrow] (blue_hawaii) -- node[left, relation_label]
+        {film.film.starring} (elvis);
+        \draw[edge_arrow] (blue_hawaii) -- node[sloped, above, relation_label]
+        {film.film.genre} (film_genre);
+        \draw[edge_arrow] (blue_hawaii) -- node[sloped, above, relation_label, pos=0.8]
+        {film.film.directed\_by} (director);
+
+        % Legend
+        \draw[rounded corners, draw=gray!50, fill=gray!5, thick]
+        (-2.0, -5) rectangle (10.0, -3.5);
+
+        \draw[path_edge] (-2, -4.0) -- (-1, -4.0);
+        \node[font=\sffamily\small, anchor=west] at (-1, -4.0)
+        {Verified path: $(\textit{Blue\_Hawaii} \to \textit{Hawaii} \to \textit{Pacific\_Ocean})$};
+
+        % Other edges
+        \draw[edge_arrow] (-2, -4.5) -- (-1, -4.5);
+        \node[font=\sffamily\small, anchor=west] at (-1, -4.5)
+        {Other edges in $\mathcal{G}$};
+
+    \end{tikzpicture}
+    \caption{Example knowledge graph subgraph from Freebase}
+    \label{fig:kg_example}
+\end{figure}
+
+\subsection{WebQSP and ComplexWebQuestions: Benchmark Architecture, Evaluation Protocol, and Hop-Depth Stratification}
+
+Two benchmark datasets provide the empirical evaluation framework for this
+dissertation. WebQSP \citep{yih2016value} is derived from the WebQuestions
+dataset and comprises 4,737 questions grounded in Freebase,
+with reasoning depths of one to two hops. Each question is annotated
+with its corresponding SPARQL query against Freebase and is typically evaluated using Hits@1 and F1 scores. Within the context of constrained generation, WebQSP
+represents a low-complexity verification regime; because the valid path set branching from any question entity is strictly bounded, the target path is relatively straightforward to discriminate from incorrect alternatives.
+
+ComplexWebQuestions (CWQ; \citealt{talmor2018web}) extends this paradigm by applying systematic transformations -- specifically composition, conjunction, and comparative or superlative operations -- to WebQSP seed queries. This yields
+approximately 34,000 questions requiring deeper reasoning chains spanning up to four hops. For generative frameworks, CWQ
+represents the combinatorial frontier where the \textit{permissiveness problem} is most acute. At a depth of four hops, the set of structurally valid paths reachable from the question entities
+grows exponentially. Forced to discriminate among thousands of formally valid but
+semantically irrelevant paths relying solely on its internal parametric knowledge, the LLM is exposed to the exact hallucination failure mode
+that DCA-Trie targets. To systematically measure this degradation, the hop-depth-stratified evaluation protocol from
+\citet{lan2022survey} is adopted for the experiments in Chapter~4.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[
+                ybar,
+                width=0.8\textwidth,
+                height=6cm,
+                bar width=15pt,
+                enlarge x limits=0.2,
+                ylabel={Percentage of Questions (\%)},
+                xlabel={Number of Hops},
+                symbolic x coords={1-Hop, 2-Hop, 3-Hop, 4-Hop},
+                xtick=data,
+                ymin=0, ymax=80,
+                nodes near coords,
+                nodes near coords align={vertical},
+                legend style={at={(0.95,0.95)}, anchor=north east, draw=none}
+            ]
+            \addplot[fill=blue!40!white, draw=black] coordinates {(1-Hop, 72) (2-Hop, 28) (3-Hop, 0) (4-Hop, 0)};
+            \addplot[fill=red!40!white, draw=black] coordinates {(1-Hop, 0) (2-Hop, 32) (3-Hop, 48) (4-Hop, 20)};
+            \legend{WebQSP, ComplexWebQuestions}
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Hop-depth distributions for WebQSP and ComplexWebQuestions.}
+    \label{fig:benchmark_hops}
+\end{figure}
+
+\subsection{Multi-Hop Reasoning Complexity: Exponential Path Growth and the
+    Permissiveness Problem Quantified}
+
+The qualitative difference between one-hop and multi-hop questions can be made
+precise through a combinatorial analysis. A one-hop question requires selecting
+a single correct relation from the set of outgoing edges of the question entity
+$e_q$. The valid candidate set is bounded by the out-degree $d$ of $e_q$.
+A multi-hop question of depth $L$ requires selecting a correct sequence of
+$L$ consecutive steps, where at each step the valid set multiplies. The upper
+bound on the number of valid KG paths of length $L$ reachable from the question
+entities $\mathcal{E}_q$ is:
+
+\begin{equation}
+    |\mathcal{P}_L| \;\leq\; |\mathcal{E}_q| \times d^L
+    \label{eq:pathgrowth}
+\end{equation}
+
+where $d$ represents the average out-degree of entities in $\mathcal{G}$. Assuming a conservative average out-degree $d \approx 20$ for well-connected entities in Freebase, and a typical query linking to $|\mathcal{E}_q| \in \{1, 2, 3\}$ seed entities, we can instantiate
+Equation~\eqref{eq:pathgrowth}: at $L = 2$, the upper bound is
+$3 \times 400 = 1{,}200$ valid paths; at $L = 3$, the bound grows to
+$3 \times 8{,}000 = 24{,}000$ valid paths; at $L = 4$, the bound reaches
+$3 \times 160{,}000 = 480{,}000$ valid paths. In each case, exactly one path is the correct targeted answer.
+
+This exponential growth formally quantifies the permissiveness problem inherent to GCR
+and DoG. When the constraint oracle relies purely on structural validity, $f(\mathcal{G}, \mathcal{E}_q)$, the
+valid token set at every generation step is flooded with thousands of structurally
+permitted but semantically irrelevant paths. The LLM is consequently forced to discriminate among
+them relying solely on its internal parametric knowledge -- precisely the hallucination-prone
+failure mode that constrained decoding was originally designed to suppress
+\citep{luo2024gcr, li2024dog}. The Semantic Irrelevance Ratio (SIR), introduced
+in Chapter~3 of this dissertation, provides the first direct measure of this
+phenomenon. Empirical evidence for performance degradation as a function of hop
+depth is documented in \citet{he2021multihop} and \citet{lan2022survey}.
+
+\begin{figure}[H]
+    \centering
+    \resizebox{0.98\textwidth}{!}{
+        \begin{tikzpicture}[>=latex]
+            % Styles
+            \tikzstyle{entity} = [draw=gray!50, fill=gray!10, rounded corners=3pt, thick, inner sep=6pt, font=\scriptsize\sffamily, align=center]
+            \tikzstyle{correct_entity} = [draw=teal!80!black, fill=teal!10, rounded corners=3pt, thick, inner sep=6pt, font=\scriptsize\sffamily, align=center]
+            \tikzstyle{relation} = [->, draw=gray!40, thick, font=\tiny\ttfamily]
+            \tikzstyle{correct_relation} = [->, draw=teal!80!black, very thick, font=\tiny\ttfamily\bfseries]
+            \tikzstyle{dots} = [font=\Large, text=gray!60]
+
+            % Level 0: Root
+            \node[correct_entity] (e0) at (0, 0) {Question\\Entity ($e_q$)};
+
+            % Level 1
+            \node[entity] (e1_1) at (3.5, 2.5) {Entity $1_1$};
+            \node[dots] (d1_1) at (3.5, 1.25) {\vdots};
+            \node[correct_entity] (e1_c) at (3.5, 0) {Entity $1_*$};
+            \node[dots] (d1_2) at (3.5, -1.25) {\vdots};
+            \node[entity] (e1_n) at (3.5, -2.5) {Entity $1_{d}$};
+
+            % Level 2
+            \node[entity] (e2_1) at (7.5, 3.2) {Entity $2_1$};
+            \node[entity] (e2_2) at (7.5, 1.8) {Entity $2_2$};
+
+            \node[entity] (e2_c1) at (7.5, 0.8) {Entity $2_a$};
+            \node[correct_entity] (e2_c) at (7.5, 0) {Entity $2_*$};
+            \node[entity] (e2_c2) at (7.5, -0.8) {Entity $2_b$};
+
+            \node[entity] (e2_n1) at (7.5, -1.8) {Entity $2_{x}$};
+            \node[entity] (e2_n2) at (7.5, -3.2) {Entity $2_{y}$};
+
+            % Level 3
+            \node[entity] (e3_1) at (11.5, 3.5) {Entity $3_1$};
+            \node[entity] (e3_2) at (11.5, 2.9) {Entity $3_2$};
+
+            \node[entity] (e3_c1) at (11.5, 0.6) {Entity $3_a$};
+            \node[correct_entity] (e3_c) at (11.5, 0) {Target\\Answer ($a$)};
+            \node[entity] (e3_c2) at (11.5, -0.6) {Entity $3_b$};
+
+            \node[entity] (e3_n1) at (11.5, -2.9) {Entity $3_{x}$};
+            \node[entity] (e3_n2) at (11.5, -3.5) {Entity $3_{y}$};
+
+            % Draw Relations to Level 1
+            \draw[relation] (e0) -- (e1_1);
+            \draw[correct_relation] (e0) -- node[above, sloped] {$r^{(1)}_*$} (e1_c);
+            \draw[relation] (e0) -- (e1_n);
+
+            % Draw Relations to Level 2
+            \draw[relation] (e1_1) -- (e2_1);
+            \draw[relation] (e1_1) -- (e2_2);
+
+            \draw[relation] (e1_c) -- (e2_c1);
+            \draw[correct_relation] (e1_c) -- node[above, sloped] {$r^{(2)}_*$} (e2_c);
+            \draw[relation] (e1_c) -- (e2_c2);
+
+            \draw[relation] (e1_n) -- (e2_n1);
+            \draw[relation] (e1_n) -- (e2_n2);
+
+            % Draw Relations to Level 3
+            \draw[relation] (e2_1) -- (e3_1);
+            \draw[relation] (e2_1) -- (e3_2);
+
+            \draw[relation] (e2_c) -- (e3_c1);
+            \draw[correct_relation] (e2_c) -- node[above, sloped] {$r^{(3)}_*$} (e3_c);
+            \draw[relation] (e2_c) -- (e3_c2);
+
+            \draw[relation] (e2_n2) -- (e3_n1);
+            \draw[relation] (e2_n2) -- (e3_n2);
+
+            % Dots for omitted branches
+            \node[dots] at (5.5, 2.5) {\vdots};
+            \node[dots] at (5.5, -2.5) {\vdots};
+            \node[dots] at (9.5, 3.2) {\vdots};
+            \node[dots] at (9.5, 0) {\vdots};
+            \node[dots] at (9.5, -3.2) {\vdots};
+
+            % Grouping / Annotations below
+            \draw[dashed, gray!70] (1.75, -4) -- (1.75, 4.0);
+            \draw[dashed, gray!70] (5.5, -4) -- (5.5, 4.0);
+            \draw[dashed, gray!70] (9.5, -4) -- (9.5, 4.0);
+
+            \node[align=center, font=\sffamily\footnotesize, yshift=-4.5cm] at (0, 0) {\textbf{Hop 0}\\$1$ node};
+            \node[align=center, font=\sffamily\footnotesize, yshift=-4.5cm] at (3.5, 0) {\textbf{Hop 1}\\$\sim \mathbf{20}$ \textbf{paths}};
+            \node[align=center, font=\sffamily\footnotesize, yshift=-4.5cm] at (7.5, 0) {\textbf{Hop 2}\\$\sim \mathbf{400}$ \textbf{paths}};
+            \node[align=center, font=\sffamily\footnotesize, yshift=-4.5cm] at (11.5, 0) {\textbf{Hop 3}\\$\sim \mathbf{8{,}000}$ \textbf{paths}};
+
+            % Add overarching text context
+            \node[align=left, anchor=west, font=\sffamily\scriptsize, text=teal!80!black, fill=teal!5, draw=teal, inner sep=4pt, rounded corners] at (6.5, -4.5) {Only one unique chain constitutes the true target.\\The LLM must discriminate this path against\\thousands of structurally valid decoys.};
+        \end{tikzpicture}
+    }
+    \caption{Exponential growth of structurally valid KG paths with hop depth.}
+    \label{fig:pathexplosion}
+\end{figure}
+
+% -----------------------------------------------------------------------------
+\section{Constrained Decoding for Faithful Text Generation: From Logit Masking
+  to Knowledge Graph Oracles}
+\label{sec:constrained}
+% -----------------------------------------------------------------------------
+
+This section establishes the technical lineage of constrained decoding paradigms leading to the proposed framework. It progresses from the foundational logit-masking mechanism through grammar-based constraints to contemporary knowledge-graph-specific oracles. Each framework reviewed serves either as a direct methodological baseline or as a foundational model whose specific structural limitations the DCA-Trie architecture is designed to resolve.
+
+\subsection{The Logit-Masking Paradigm: Hard Constraints on Autoregressive
+    Vocabulary Selection}
+
+The logit-masking paradigm is the foundational mechanism for hard-constrained
+generation \citep{geng2023gcd, willard2023outlines}. The key insight is that
+rather than influencing the probability distribution over tokens, as prompting
+does, a constraint oracle computes a binary mask that sets the logit of every
+invalid token to negative infinity (effectively zero probability after softmax)
+before the token selection step. This renders the generation of invalid tokens
+mathematically impossible rather than merely improbable.
+
+Formally, let $\boldsymbol{\alpha}_t \in \mathbb{R}^{|\mathcal{V}|}$ be the raw
+logit vector at decoding step $t$, and let $\mathbf{m}_t \in \{0, 1\}^{|\mathcal{V}|}$
+be the binary validity mask computed by the constraint oracle. The masked logit
+vector is:
+
+\begin{equation}
+    \tilde{\boldsymbol{\alpha}}_t \;=\; \mathbf{m}_t \odot \boldsymbol{\alpha}_t
+    \label{eq:logitmask}
+\end{equation}
+
+where $\odot$ denotes element-wise product (with the convention that
+$0 \odot \alpha = -\infty$ before softmax). Token selection under greedy
+decoding is $y_t = \argmax(\tilde{\boldsymbol{\alpha}}_t)$. Under beam search
+with beam width $k$, the top-$k$ partial sequences are maintained and ranked by
+cumulative log-probability of masked logits.
+
+The central research question of this dissertation follows directly from this
+formulation: \textit{how should $\mathbf{m}_t$ be computed?} The answer
+determines the expressiveness, faithfulness, and efficiency of the entire
+framework. GCR computes $\mathbf{m}_t$ from a function $f(\mathcal{G},
+    \mathcal{E}_q)$ evaluated once before generation. DCA-Trie computes
+$\mathbf{m}_t$ from a function $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$
+updated at every step. Every subsequent subsection is a step in the progression
+toward this answer.
+
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{
+        \begin{tikzpicture}[
+            node distance=1.5cm and 2cm,
+            box/.style={draw, rectangle, rounded corners, inner sep=10pt, align=center, thick},
+            array/.style={draw, rectangle, inner sep=5pt, font=\ttfamily},
+            arrow/.style={-{Stealth[scale=1.2]}, thick},
+            label font/.style={font=\small\sffamily}
+            ]
+            % Language Model Box
+            \node[box, fill=purple!10] (llm) {Large Language Model \\ $P(v \mid q, y_{<t})$};
+
+            % Logits array
+            \node[array, right=of llm, yshift=1cm] (logits) {[2.4, -1.2, 5.1, 0.4, \dots]};
+            \node[above=0.2cm of logits, label font] {Raw Logits $z_v$};
+
+            % Constraint Oracle Box
+            \node[box, fill=teal!10, below=1cm of llm] (oracle) {Constraint Oracle \\ Valid Set $\mathcal{V}_t$};
+
+            % Mask array
+            \node[array, right=of oracle, yshift=-0.5cm] (mask) {[1, 0, 1, 0, \dots]};
+            \node[above=0.2cm of mask, label font] {Binary Mask $M(v)$};
+
+            % Operation (Logit Masking)
+            \node[circle, draw, thick, right=of logits, yshift=-1.5cm, fill=black!5] (plus) {$+$};
+
+            % Mask translation to infinity (Conceptual)
+            \node[array, left=1cm of plus, yshift=-1cm] (infmask) {[0, $-\infty$, 0, $-\infty$, \dots]};
+
+            % Edges to plus
+            \draw[arrow] (logits.east) -| (plus.north);
+            \draw[arrow] (mask.east) -| (infmask.south);
+            \draw[arrow] (infmask.east) -- (plus.west);
+
+            \draw[arrow] (llm) -- (logits.west);
+            \draw[arrow] (oracle) -- (mask.west);
+
+            % Result array
+            \node[array, right=of plus] (masked_logits) {[2.4, $-\infty$, 5.1, $-\infty$, \dots]};
+            \node[above=0.2cm of masked_logits, label font] {Masked $z'_v$};
+
+            % Softmax
+            \node[box, right=of masked_logits, fill=orange!10] (softmax) {Softmax};
+
+            % Final output
+            \node[array, right=of softmax] (probs) {[0.06, 0.0, 0.94, 0.0, \dots]};
+            \node[above=0.2cm of probs, label font] {Final Probabilities};
+
+            % Edges after plus
+            \draw[arrow] (plus) -- (masked_logits);
+            \draw[arrow] (masked_logits) -- (softmax);
+            \draw[arrow] (softmax) -- (probs);
+        \end{tikzpicture}
+    }
+    \caption{The logit-masking mechanism. Token selection operates exclusively over the valid, non-zero subset defined by the constraint oracle mask.}
+    \label{fig:logitmask}
+\end{figure}
+
+\subsection{Grammar-Constrained Decoding: GCD and Outlines as Foundational Format Constraints}
+
+\citet{geng2023gcd} introduce Grammar-Constrained Decoding (GCD), which
+constrains generation to strings conforming to a context-free grammar by
+using an Earley parser as the constraint oracle. \citet{willard2023outlines}
+introduce Outlines, which achieves the same goal for regular-expression and
+JSON-schema constraints via finite-state automata. Both works establish the
+critical efficiency insight that the constraint structure can be precomputed
+offline, as parse states or automaton transitions, and queried in amortized
+constant time at each inference step. This precomputation insight is central to
+DCA-Trie v1, which preserves it through static semantic filtering at trie
+construction time.
+
+\begin{figure}[H]
+    \centering
+    \begin{algorithm}[H]
+        \caption{Grammar-Constrained Decoding Algorithm}
+        \begin{algorithmic}[1]
+            \Require Context-free grammar $\mathcal{G}_{\text{CFG}}$; LLM with vocabulary
+            $\mathcal{V}$; prompt $x$
+            \Ensure Output sequence $y_1 \ldots y_T$ valid under $\mathcal{G}_{\text{CFG}}$
+            \State \textbf{Precompute:} Earley parse automaton $\mathcal{A}$ from
+            $\mathcal{G}_{\text{CFG}}$
+            \For{$t = 1$ \textbf{to} $T$}
+            \State $\mathcal{V}_t \gets \{v \in \mathcal{V} : y_{<t} \| v \text{ is a valid
+                    grammar prefix under } \mathcal{A}\}$
+            \Comment{Oracle query}
+            \State $\mathbf{m}_t[v] \gets \mathbf{1}[v \in \mathcal{V}_t]$ for all
+            $v \in \mathcal{V}$
+            \State $\tilde{\boldsymbol{\alpha}}_t \gets \mathbf{m}_t \odot
+                \textsc{LLMLogits}(y_{<t}, x)$
+            \State $y_t \gets \argmax(\tilde{\boldsymbol{\alpha}}_t)$
+            \EndFor
+            \State \Return $y_1 \ldots y_T$
+        \end{algorithmic}
+    \end{algorithm}
+    \caption{Grammar-Constrained Decoding Algorithm.}
+    \label{alg:gcd}
+\end{figure}
+
+The shared limitation of GCD and Outlines is stated precisely: both frameworks
+constrain the \textit{format} of the output (grammar, schema, structure) but not
+the \textit{factual content}. A grammatically valid JSON response can contain
+entirely hallucinated facts. As annotated in Figure~\ref{alg:gcd}, the valid
+set $\mathcal{V}_t$ depends only on the partial string and the grammar; there is
+no dependence on question semantics or on a verified factual source. This is the
+same structural limitation present in GCR's KG-Trie, which constrains to KG
+path format while remaining semantically blind to the question. The transition
+from format constraints to knowledge-graph content constraints is the next step
+in the progression.
+
+\subsection{Graph-Constrained Reasoning (GCR): Structural Faithfulness via KG-Trie Oracles}
+
+Graph-Constrained Reasoning (GCR; \citealt{luo2024gcr}) is the primary baseline
+for this dissertation and represents the state of the art in KG-constrained
+decoding at the time of this work. GCR introduces five components. First,
+\textit{entity linking} identifies the question entity set $\mathcal{E}_q$ from
+the natural language question before generation begins. Second,
+\textit{KG-Trie construction} performs a breadth-first search from
+$\mathcal{E}_q$ up to $L$ hops, encoding all reachable KG paths as a prefix
+tree. A trie node at depth $d$ corresponds to a partial path of $d$ tokens.
+Third, \textit{constrained decoding} queries the trie at each generation step
+with the current partial generation $y_{<t}$ to return the set of tokens that
+extend a valid trie prefix. Fourth, the \textit{faithfulness guarantee} follows:
+because every token must correspond to a valid trie prefix, and every trie path
+corresponds to a verified triplet chain in $\mathcal{T}$, structural hallucination
+is mathematically impossible. Fifth, GCR achieves 92.6 Hits@1 on WebQSP and
+75.8 Hits@1 on CWQ with verified 100\% structural faithfulness using a
+Llama-3.1-8B backbone \citep{luo2024gcr}.
+
+Formally, the valid token set under GCR is:
+
+\begin{equation}
+    \mathcal{W}_{\text{val}}^{\text{GCR}} \;=\; f(\mathcal{G},\, \mathcal{E}_q)
+    \label{eq:gcr}
+\end{equation}
+
+The KG-Trie $\mathcal{T}_{\text{trie}}$ is constructed as
+$\mathcal{T}_{\text{trie}} = \textsc{BFS}(\mathcal{G}, \mathcal{E}_q, L)$.
+At each step $t$:
+\[
+    \mathcal{V}_t = \bigl\{v \in \mathcal{V} : \text{prefix}(y_{<t}) \| v \in
+    \mathcal{T}_{\text{trie}}\bigr\}
+\]
+
+The critical annotation is that $\mathcal{W}_{\text{val}}^{\text{GCR}}$ has
+\textit{no dependence} on $q$ (the question text) or on $y_{<t}$ (the partial
+generation state). The valid set is semantically blind and computationally fixed
+before generation begins. This is the exact formulation that DCA-Trie upgrades
+to $\mathcal{W}_{\text{val}}^{\text{DCA}}(t) = f(\mathcal{G}, \mathcal{E}_q, q,
+    y_{<t})$.
+
+\begin{figure}[H]
+    \centering
+    \resizebox{0.95\textwidth}{!}{
+        \begin{tikzpicture}[>=latex]
+            % Styles
+            \tikzstyle{entity} = [draw=black!80, fill=red!10, rounded corners=3pt, thick, inner sep=6pt, font=\scriptsize\sffamily, align=center]
+            \tikzstyle{relation} = [->, draw=red!60, thick, font=\tiny\ttfamily]
+            \tikzstyle{dots} = [font=\Large, text=red!60]
+
+            % Overarching box for the problem (drawn first to act as background)
+            \draw[draw=red, thick, rounded corners, fill=red!5, dashed] (2, -3.3) rectangle (12, 4.7);
+            \node[font=\sffamily\footnotesize, text=red!80!black, anchor=north] at (7, 4.7) {\textbf{The Permissiveness Problem}};
+
+            % Level 0: Root
+            \node[entity, fill=blue!10, draw=black!80] (e0) at (0, 0.5) {Elvis\_Presley\\(Question Entity)};
+
+            % Level 1: Relations
+            \node[draw=red!80, fill=white, inner sep=2pt, font=\tiny\ttfamily, rounded corners=2pt] (r1_1) at (3.5, 3.2) {starred\_in};
+            \node[draw=red!80, fill=white, inner sep=2pt, font=\tiny\ttfamily, rounded corners=2pt] (r1_2) at (3.5, 1.2) {born\_in};
+            \node[dots] (d1_1) at (3.5, -0.2) {\vdots};
+            \node[draw=red!80, fill=white, inner sep=2pt, font=\tiny\ttfamily, rounded corners=2pt] (r1_n) at (3.5, -2.2) {genre};
+
+            % Level 2: Entities
+            \node[entity] (e2_1) at (7, 3.9) {Blue\_Hawaii};
+            \node[entity] (e2_2) at (7, 2.5) {Jailhouse\_Rock};
+            \node[entity] (e2_3) at (7, 1.2) {Tupelo};
+            \node[entity] (e2_n) at (7, -2.2) {Rock\_and\_Roll};
+
+            % Level 3: Relations
+            \node[draw=red!80, fill=white, inner sep=2pt, font=\tiny\ttfamily, rounded corners=2pt] (r2_1) at (10.5, 4.5) {directed\_by};
+            \node[draw=red!80, fill=white, inner sep=2pt, font=\tiny\ttfamily, rounded corners=2pt] (r2_2) at (10.5, 3.3) {release\_date};
+            \node[dots] (d2_1) at (10.5, 2.3) {\vdots};
+            \node[dots] (d2_n) at (10.5, -2.2) {\vdots};
+
+            % Draw Edges
+            \draw[relation] (e0) -- (r1_1);
+            \draw[relation] (e0) -- (r1_2);
+            \draw[relation] (e0) -- (r1_n);
+
+            \draw[relation] (r1_1) -- (e2_1);
+            \draw[relation] (r1_1) -- (e2_2);
+            \draw[relation] (r1_2) -- (e2_3);
+            \draw[relation] (r1_n) -- (e2_n);
+
+            \draw[relation] (e2_1) -- (r2_1);
+            \draw[relation] (e2_1) -- (r2_2);
+
+            \node[align=center, font=\sffamily\scriptsize, text=red!80!black] at (7, -4.2) {The entire breadth-first tree is encoded into the valid set \\ \textit{regardless} of the specific question semantics. At depth 3, this \\ can introduce up to $3 \times 20^3 = 24{,}000$ valid paths into the trie.};
+
+        \end{tikzpicture}
+    }
+    \caption{The GCR KG-Trie illustrating the permissiveness problem.}
+    \label{fig:gcrtrie}
+\end{figure}
+
+\subsection{Decoding on Graphs (DoG): Step-Wise Topological Expansion and Its
+    Persistent Limitations}
+
+\citet{li2024dog} introduce Decoding on Graphs (DoG) as a partial remedy to
+GCR's static trie. DoG introduces step-wise trie expansion: after committing to
+an entity $e_t$ during generation, the valid set is extended with all KG
+neighbors of $e_t$. Formally, after committing entity $e_t$:
+
+\begin{equation}
+    \mathcal{T}_{t+1} \;=\; \mathcal{T}_t \;\cup\; \bigl\{(e_t,\, r,\, e') :
+    (e_t,\, r,\, e') \in \mathcal{T}\text{ for all } r, e'\bigr\}
+    \label{eq:dog}
+\end{equation}
+
+This makes the constraint topologically dynamic: it grows as reasoning
+progresses through the graph. DoG offers two genuine improvements over GCR.
+First, the valid set at step $t$ reflects the entities already committed to in
+the reasoning chain, so the trie cannot contain paths that are structurally
+inconsistent with the committed reasoning direction. Second, the dynamic
+expansion can handle knowledge graphs too large to enumerate statically within
+the pre-generation BFS.
+
+However, DoG has two persistent limitations. First, as is explicit in
+Equation~\eqref{eq:dog}, the expansion rule is semantically blind: every
+neighbor of every visited entity is admitted to $\mathcal{T}_{t+1}$ regardless
+of its relevance to $q$ or to the partial generation $y_{<t}$. The permissiveness
+problem therefore persists: the number of paths in the valid set may remain in
+the thousands at every step. Second, DoG sacrifices the computational efficiency
+of precomputed trie structures identified by \citet{willard2023outlines}: because
+the trie must be rebuilt at each step, the amortized per-step query cost of
+precomputed structures is forfeited.
+
+DCA-Trie addresses both limitations simultaneously. The DCA-Trie v2 expansion
+rule replaces the semantically blind expansion of Equation~\eqref{eq:dog} with a
+semantically conditioned rule (defined formally in Chapter~3):
+\[
+    \mathcal{T}_{t+1} = \mathcal{T}_t \cup \bigl\{(e_t,\, r,\, e') :
+    \textsc{score}(e',\, q,\, y_{<t}) \geq \tau\bigr\}
+\]
+The single structural change, conditioning expansion on a semantic relevance
+score, is the core algorithmic contribution of DCA-Trie v2.
+
+\begin{figure}[H]
+    \centering
+    \resizebox{0.95\textwidth}{!}{
+        \begin{tikzpicture}[>=latex]
+            % Define styles
+            \tikzstyle{col_header} = [font=\sffamily\bfseries\small, align=center]
+            \tikzstyle{row_header} = [font=\sffamily\bfseries\footnotesize, align=right]
+
+            \def\radLarge{1.4}
+            \def\radMed{0.9}
+            \def\radRel{0.3}
+
+            % Column Headers
+            \node[col_header] at (2, 5) {GCR\\[0.5ex]\scriptsize (Static \& Blind)};
+            \node[col_header] at (6, 5) {DoG\\[0.5ex]\scriptsize (Dynamic \& Blind)};
+            \node[col_header] at (10, 5) {DCA-Trie\\[0.5ex]\scriptsize (Dynamic \& Conditioned)};
+
+            % Row Headers
+            \node[row_header] at (-1.5, 3) {Step $t=1$};
+            \node[row_header] at (-1.5, 0) {Step $t=2$};
+            \node[row_header] at (-1.5, -3) {Step $t=3$};
+
+            % --- GCR Column ---
+            % All steps have the same large static constraint circle
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (2, 3) circle (\radLarge);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (2, 3) circle (\radRel);
+
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (2, 0) circle (\radLarge);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (2, 0) circle (\radRel);
+
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (2, -3) circle (\radLarge);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (2, -3) circle (\radRel);
+
+            % --- DoG Column ---
+            % Circles incrementally grow as new neighbors are added, blind to semantics
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (6, 3) circle (0.7);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (6, 3) circle (\radRel);
+
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (6, 0) circle (1.1);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (6, 0) circle (\radRel);
+
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (6, -3) circle (\radLarge);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (6, -3) circle (\radRel);
+
+            % --- DCA-Trie Column ---
+            % Circles stay tight to the relevant constraint at every step
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (10, 3) circle (0.35);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (10, 3) circle (\radRel);
+
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (10, 0) circle (0.35);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (10, 0) circle (\radRel);
+
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (10, -3) circle (0.35);
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (10, -3) circle (\radRel);
+
+            % Separator lines
+            \draw[gray!30, thick] (-2, 1.5) -- (12, 1.5);
+            \draw[gray!30, thick] (-2, -1.5) -- (12, -1.5);
+
+            \draw[gray!30, thick] (4, 5.5) -- (4, -4.5);
+            \draw[gray!30, thick] (8, 5.5) -- (8, -4.5);
+
+            % Legend
+            \draw[draw=gray, rounded corners, fill=white] (1.2, -5.8) rectangle (11.2, -4.7);
+            \filldraw[fill=red!10, draw=red!40, dashed, thick] (2.2, -5.25) circle (0.3);
+            \node[font=\sffamily\scriptsize, anchor=west] at (2.6, -5.25) {Total Valid Tokens ($\mathcal{V}_t$)};
+            \filldraw[fill=teal!40!white, draw=teal!80!black, thick] (6.8, -5.25) circle (0.2);
+            \node[font=\sffamily\scriptsize, anchor=west] at (7.1, -5.25) {Semantically Relevant Tokens};
+
+        \end{tikzpicture}
+    }
+    \caption{Evolution of the constraint valid set across decoding steps.}
+    \label{fig:constraint_evolution}
+\end{figure}
+
+% -----------------------------------------------------------------------------
+\section{Beam Search Decoding and Prefix-Tree Constraint Integration: Mechanics, Efficiency, and the Step-Wise Constraint Problem}
+\label{sec:beam}
+% -----------------------------------------------------------------------------
+
+DCA-Trie v2 operates step-wise during beam search. Reviewers evaluating the
+method chapter need to understand both the beam search mechanism and how
+prefix-tree constraints interact with beam expansion before the DCA-Trie design
+can be followed. This section provides that foundation.
+
+\subsection{Beam Search: Approximate Global Optimization Over Autoregressive
+    Sequences}
+
+Beam search is the standard approximate decoding algorithm for autoregressive sequence generation \citep{holtzman2020curious}. The algorithm maintains a
+\textit{beam} (a set of $k$ partial sequences) at each generation step. At
+step $t$, every beam hypothesis is expanded by every vocabulary token, masked
+logit scores are computed, and only the top-$k$ hypotheses by cumulative
+log-probability are retained. Formally, for each beam hypothesis
+$h \in \mathcal{B}_t$:
+
+\begin{equation}
+    \textsc{score}(h \| v) = \textsc{score}(h) +
+    \log \textsc{softmax}\bigl(\tilde{\boldsymbol{\alpha}}_t\bigr)[v],
+    \quad \forall\, v \in \mathcal{V} \text{ with } \tilde{\boldsymbol{\alpha}}_t[v] > 0
+    \label{eq:beamsearch}
+\end{equation}
+
+The updated beam is $\mathcal{B}_{t+1} = \text{top-}k$ over all $(h, v)$
+pairs by $\textsc{score}(h \| v)$. The beam width $k$ controls the
+exploration-exploitation tradeoff: $k = 1$ reduces to greedy decoding; larger
+$k$ explores a wider portion of the generation space at the cost of $k$-fold
+compute per step.
+
+When combined with the logit mask from Equation~\eqref{eq:logitmask}, beam
+search operates exclusively within the valid subspace defined by the constraint
+oracle. The KG-Trie defines this subspace structurally; DCA-Trie's semantic
+filter narrows it further, reducing the number of $(h, v)$ candidate pairs that
+must be scored at each beam expansion step. This reduction is what makes
+DCA-Trie computationally competitive with GCR despite the additional scoring
+overhead.
+
+\subsection{Prefix Trees as Constraint Oracles: Efficiency, Precomputation, and
+    the Dynamic Rebuilding Cost}
+
+A prefix tree (trie; \citealt{fredkin1960trie}) over KG paths supports $O(d)$
+lookup at each generation step: given the current partial sequence $y_{<t}$, the
+set of valid next tokens is exactly the set of children of the current trie node.
+This is the efficiency insight of \citet{willard2023outlines}: precomputing the
+trie amortizes the constraint lookup cost across all generation steps, making
+constrained decoding practical at inference time. The trie construction
+complexity is $O(|\mathcal{P}| \times L)$, where $|\mathcal{P}|$ is the number
+of valid paths encoded and $L$ is the maximum path length.
+
+DoG's step-wise expansion sacrifices this benefit by rebuilding the trie at each
+step at a cost of $O(|\mathcal{N}_t| \times d)$ per step, where
+$|\mathcal{N}_t|$ is the number of newly reachable entities at step $t$. While
+not prohibitive per step, this cost accumulates over $L$ steps and eliminates
+the precomputation advantage entirely. DCA-Trie v1 (static semantic filtering at
+construction time) preserves the precomputation benefit entirely, since the
+filtered trie is built once before generation. DCA-Trie v2 (dynamic step-wise
+expansion with semantic filtering) incurs per-step rebuilding overhead similar
+to DoG, but the semantic filter prunes most candidate expansions, so the
+effective expansion set $|\mathcal{N}_t^{\text{filtered}}|$ is substantially
+smaller than $|\mathcal{N}_t|$ in DoG.
+
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{\includegraphics{Figures/fig2_9.png}}
+    \caption{Interaction between prefix-tree constraint lookup and beam search expansion.}
+    \label{fig:beamtrie}
+    {\small \emph{Image by Authors}}
+\end{figure}
+
+
+\subsection{The Step-Wise Constraint Problem: When the Constraint Must Know What
+    Has Been Generated}
+
+The step-wise constraint problem is the core design challenge motivating
+DCA-Trie. In GCR, the constraint oracle is computed once before generation and
+queried at each step without memory of what has been generated beyond the
+structural trie path. In DCA-Trie v2, the oracle is updated after each
+committed entity to reflect the semantic direction of the current reasoning
+chain. This requires the oracle to maintain state across generation steps;
+specifically, the partial generation $y_{<t}$ and the question embedding must
+be re-incorporated at each update.
+
+The formal requirement is:
+
+\begin{equation}
+    \mathcal{W}_{\text{val}}^{\text{DCA}}(t) \;=\;
+    f\!\bigl(\mathcal{G},\, \mathcal{E}_q,\, q,\, y_{<t}\bigr)
+    \label{eq:dcareq}
+\end{equation}
+
+where the function $f$ must satisfy three conditions. (i) \textit{Structural
+    faithfulness}: every token $v \in \mathcal{W}_{\text{val}}^{\text{DCA}}(t)$
+corresponds to a valid KG path prefix in $\mathcal{G}$. (ii)
+\textit{Semantic relevance}: the proportion of $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$
+consisting of semantically irrelevant paths is strictly less than that of
+$\mathcal{W}_{\text{val}}^{\text{GCR}}$. (iii) \textit{Recall preservation}:
+the gold answer path is never excluded from $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$,
+with false negative rate held below 5\% on the WebQSP validation set. These
+three conditions constitute the formal specification of DCA-Trie, evaluated
+quantitatively in Chapter~4.
+
+% -----------------------------------------------------------------------------
+\section{Retrieval-Augmented Generation: Architectural Variants, KG-Augmented Approaches, and the Hard Limit of Soft Grounding}
+\label{sec:rag}
+% -----------------------------------------------------------------------------
+
+Retrieval-augmented generation is the dominant paradigm for grounding LLM
+outputs in external knowledge. This section reviews the foundational RAG
+architecture, KG-specific retrieval variants, and the latest advanced RAG
+systems, before providing a formal impossibility argument establishing that no
+RAG variant can achieve the structural faithfulness guarantees that constrained
+decoding provides.
+
+\subsection{The RAG Paradigm: Dense Retrieval, Fusion-in-Decoder, and the Soft
+    Grounding Ceiling}
+
+\citet{lewis2020retrieval} introduce Retrieval-Augmented Generation, in which a
+dense retriever selects relevant passages from an external knowledge source based
+on embedding similarity, and a reader LLM generates the answer conditioned on
+both the question and the retrieved passages. The retriever is typically
+implemented as a dual-encoder (Dense Passage Retrieval; \citealt{karpukhin2020dpr}),
+computing embedding similarity between the question and candidate passages
+offline. Fusion-in-Decoder \citep{izacard2021leveraging} extends the original
+RAG architecture by encoding all retrieved passages independently through the
+encoder and fusing their representations in the decoder, improving coverage
+across a larger set of retrieved documents.
+
+The critical shared limitation of these approaches is architectural: retrieved
+context is a \textit{soft influence}: the LLM is free to generate any token
+regardless of the retrieved material. The retriever controls what the LLM
+\textit{sees}; the constraint oracle controls what the LLM may
+\textit{generate}. RAG addresses the former; constrained decoding addresses the
+latter. \citet{agrawal2024mindful} document the concrete consequence: even with
+explicit KG access, RAG-augmented models produce hallucinated reasoning steps in
+a substantial fraction of cases.
+
+\subsection{KG-Augmented Retrieval: Structured Context Without Structural
+    Guarantees}
+
+Several works augment the RAG paradigm with KG subgraphs rather than text
+passages, bringing the approach closer in spirit to constrained KG decoding.
+\citet{he2021multihop} use attention over retrieved KG subgraphs to guide
+multi-hop reasoning chains. \citet{yasunaga2021qagnn} combine text and KG
+context via graph neural networks, allowing the model to attend jointly to
+retrieved passages and KG neighbourhoods. \citet{shi2021kgpath} retrieve KG
+paths as natural language context strings.
+
+For each of these approaches, the faithfulness limitation is identical: the
+retrieved KG subgraph or path is provided to the LLM as additional input
+context. The LLM may attend to it, partially ignore it, or generate claims that
+go beyond it. The KG is advisory, not constraining. This is the decisive
+architectural distinction from GCR and DCA-Trie, where the KG is
+\textit{mechanically} enforced through the logit mask rather than provided as
+contextual suggestion.
+
+\subsection{Advanced RAG Variants: Self-RAG, FLARE, IRCoT, and GraphRAG}
+
+Four advanced RAG variants warrant individual analysis as potential alternatives
+to constrained decoding that a reviewer may raise.
+
+Self-RAG \citep{asai2024selfrag} augments the standard RAG pipeline by inserting
+special reflection tokens that allow the model to decide dynamically when
+retrieval is needed and whether retrieved passages are relevant or supportive.
+This improves retrieval precision and citation accuracy. However, Self-RAG does
+not modify the token selection mechanism: the LLM remains free to generate any
+token at any step, and the reflection tokens are themselves generated
+autoregressively. Unlike DCA-Trie, Self-RAG cannot guarantee structural
+faithfulness.
+
+FLARE \citep{jiang2023flare} uses the LLM's next-token prediction probability as
+a signal to trigger retrieval when confidence falls below a threshold. This
+addresses the question of \textit{when} to retrieve but leaves the generation
+faithfulness problem untouched: retrieved context is again a soft input
+influence.
+
+IRCoT \citep{trivedi2022ircot} interleaves retrieval with chain-of-thought
+reasoning steps, performing a retrieval call at each CoT step. This substantially
+improves multi-hop accuracy by ensuring that each reasoning step is informed by
+freshly retrieved context. Each CoT step nevertheless remains an unconstrained
+autoregressive generation, retaining strictly positive probability over all
+vocabulary tokens.
+
+GraphRAG \citep{edge2024graphrag} is the strongest RAG-based competitor to
+DCA-Trie, as it explicitly retrieves community-structured graph context to
+support complex relational queries. GraphRAG retrieves graph context but does
+not constrain decoding: a generation conditioned on GraphRAG context can still
+produce tokens that correspond to no KG triplet in $\mathcal{T}$.
+
+For every variant, the same single sentence applies: unlike DCA-Trie, none of
+these methods modifies the token selection mechanism and therefore none can
+guarantee structural faithfulness.
+
+\begin{figure}[t]
+    \centering
+    \resizebox{\textwidth}{!}{
+        \begin{tikzpicture}[>=latex, font=\sffamily\footnotesize]
+            % Styles
+            \tikzstyle{block} = [draw, rectangle, rounded corners, minimum height=1cm, minimum width=2.5cm, align=center, fill=blue!5]
+            \tikzstyle{data} = [draw=none, fill=gray!10, rounded corners, inner sep=5pt, align=center]
+            \tikzstyle{redanno} = [text=red!80!black, font=\sffamily\footnotesize\bfseries, align=center]
+            \tikzstyle{greenanno} = [text=green!60!black, font=\sffamily\footnotesize\bfseries, align=center]
+
+            % LEFT PANEL: RAG
+            \node[font=\sffamily\normalsize\bfseries] at (-3, 3.5) {RAG Pipeline};
+            \node[data] (q_left) at (-3, 2.3) {Question $q$};
+            \node[block, fill=orange!10] (ret) at (-5.5, 1.2) {Retriever \\ (Soft Context)};
+            \node[data] (ctx) at (-5.5, -0.2) {Retrieved \\ Subgraph/Text};
+            \node[block] (llm_left) at (-3, -1.5) {LLM \\ (Autoregressive)};
+
+            \draw[->, thick] (q_left) -| (ret);
+            \draw[->, thick] (ret) -- (ctx);
+            \draw[->, thick] (ctx) |- (llm_left);
+            \draw[->, thick] (q_left) -- (llm_left);
+
+            \node[data] (out_left) at (-3, -3) {Any token $v \in \mathcal{V}$ \\ possible};
+            \draw[->, thick] (llm_left) -- (out_left);
+
+            \node[redanno] at (-3, -4.5) {Soft Influence:\\ Faithfulness Not Guaranteed};
+
+            % RIGHT PANEL: Constrained Decoding
+            \node[font=\sffamily\normalsize\bfseries] at (4, 3.5) {Constrained Decoding Pipeline};
+            \node[data] (q_right) at (4, 2.3) {Question $q$ \\ \& Prefix $y_{<t}$};
+            \node[block, fill=teal!10] (oracle) at (1.5, 1.2) {Constraint Oracle \\ (KG-Trie)};
+            \node[block] (llm_right) at (6.5, 1.2) {LLM \\ (Raw Logits)};
+
+            \node[data] (mask) at (1.5, -0.2) {Binary Mask \\ $\alpha_t \in \{0, -\infty\}$};
+            \node[data] (logits) at (6.5, -0.2) {Logits \\ $P(v \mid y_{<t}, x)$};
+            \node[draw, circle, inner sep=3pt, fill=blue!10] (mul) at (4, -0.2) {\textbf{+}};
+
+            \draw[->, thick] (q_right) -| (oracle);
+            \draw[->, thick] (q_right) -| (llm_right);
+            \draw[->, thick] (oracle) -- (mask);
+            \draw[->, thick] (llm_right) -- (logits);
+            \draw[->, thick] (mask) -- (mul);
+            \draw[->, thick] (logits) -- (mul);
+
+            \node[data] (out_right) at (4, -3) {Only valid KG tokens \\ $v \in \mathcal{W}_{\text{val}}(t)$ possible};
+            \draw[->, thick] (mul) -- (4, -1.2) -- (out_right);
+            \node[anchor=west, font=\scriptsize] at (4.1, -1.5) {Masked Logits};
+
+            \node[greenanno] at (4, -4.5) {Hard Constraint:\\ Structural Faithfulness Guaranteed};
+
+            % Divider
+            \draw[dashed, gray, thick] (-0.5, -5) -- (-0.5, 4);
+
+        \end{tikzpicture}
+    }
+    \caption{Architectural comparison of standard Retrieval-Augmented Generation (left) and KG-constrained decoding (right).}
+    \label{fig:rag_vs_constrained}
+\end{figure}
+
+\subsection{The Formal Impossibility of Structural Faithfulness Under Soft Grounding}
+
+The following argument establishes that no retrieval-augmented approach can
+provide structural faithfulness guarantees as defined in this dissertation.
+
+\textit{Claim:} Any approach that grounds LLM generation by modifying its input
+(retrieved context, subgraphs, passages) without modifying the logit computation
+mechanism cannot guarantee structural faithfulness with probability one.
+
+\textit{Proof sketch:} Structural faithfulness requires that every generated
+token $y_t$ corresponds to a verified KG triplet. This requires that every
+token $v \notin \mathcal{W}_{\text{val}}(t)$ has exactly zero probability at
+step $t$, i.e., $P(v \mid y_{<t}, x) = 0$ for all invalid $v$. Under any RAG
+approach, the LLM's raw logit distribution assigns strictly positive logit to
+all tokens in $\mathcal{V}$ (or at least to all tokens not explicitly set to
+$-\infty$). Retrieval augmentation modifies the input $x$ to include retrieved
+context $\hat{x}$, but does not modify the logit computation
+$P(\cdot \mid y_{<t}, \hat{x})$: the distribution remains over the full
+vocabulary with strictly positive probabilities. Therefore, for any RAG approach,
+there exists strictly positive probability of generating a non-KG-valid token at
+any step. Probability-one structural faithfulness is not achievable under this
+architecture. The only mechanism that achieves it is a constraint oracle that
+explicitly sets $\alpha_t[v] = -\infty$ for all invalid $v$: the logit-masking
+mechanism of Equation~\eqref{eq:logitmask}, as implemented in GCR, DoG, and
+DCA-Trie. \citet{luo2024gcr} provide empirical confirmation: GCR achieves 100\%
+structural faithfulness where RAG-based approaches do not. \hfill$\square$
+
+% -----------------------------------------------------------------------------
+\section{Semantic Relevance Scoring with Sentence Transformer Embeddings:
+  Training Objectives, Architecture Selection, and Application to Constraint
+  Oracle Construction}
+\label{sec:sbert}
+% -----------------------------------------------------------------------------
+
+This section justifies every design choice in DCA-Trie's semantic relevance
+scorer, responding in advance to the reviewer objections: ``Why not BM25?'',
+``Why not use the LLM's own hidden states?'', and ``Why all-MiniLM-L6-v2 over a
+stronger encoder?''
+
+\subsection{Sentence-BERT: Training Objective, Architecture, and the Semantic
+    Similarity Property}
+
+\citet{reimers2019sentence} introduce Sentence-BERT (SBERT), a modification of
+the BERT architecture trained specifically to produce dense vector representations
+in which semantically similar sentences have high cosine similarity. The
+architecture uses a BERT-like transformer encoder with mean-pooling over token
+representations to produce a fixed-length sentence embedding. SBERT is trained
+using a Siamese network on labelled sentence pairs. The classification-objective
+training loss for a pair $(s_1, s_2)$ with embeddings $\mathbf{u} = E(s_1)$ and
+$\mathbf{v} = E(s_2)$ is:
+
+\begin{equation}
+    \mathcal{L} = \textsc{CrossEntropy}\Bigl(
+    \text{softmax}\bigl(\mathbf{W}_t \cdot (\mathbf{u},\, \mathbf{v},\,
+            |\mathbf{u} - \mathbf{v}|)\bigr),\; y
+    \Bigr)
+    \label{eq:sbert}
+\end{equation}
+
+where $(\mathbf{u}, \mathbf{v}, |\mathbf{u} - \mathbf{v}|)$ is the
+concatenation of the two embeddings with their element-wise absolute difference,
+$\mathbf{W}_t$ is a trainable classification head, and $y \in \{\text{entailment},
+    \text{neutral}, \text{contradiction}\}$. This objective pulls embeddings of
+entailed pairs together and pushes contradiction pairs apart in the representation
+space. At inference time, $\cos(E(s_1), E(s_2))$ measures the degree of semantic
+alignment between two sentences without requiring the classification head,
+enabling cosine similarity to serve as a reliable semantic relevance proxy
+without any task-specific fine-tuning.
+
+\subsection{Encoder Architecture Selection: all-MiniLM-L6-v2 vs Alternatives}
+
+DCA-Trie requires a semantic encoder that is invoked at every beam search step
+during constrained decoding. The selection of the encoder architecture therefore
+involves a tradeoff between semantic quality and inference latency that is more
+stringent than standard offline retrieval settings. Table~\ref{tab:encoders}
+presents a systematic comparison of five candidate architectures.
+
+\begin{table}[H]
+    \centering
+    \caption{Comparison of sentence encoder architectures.}
+    \label{tab:encoders}
+    \resizebox{\textwidth}{!}{
+        \begin{gridtabular}{l|c|c|c|c|c}
+            \gr{\textbf{Encoder}                   & \textbf{Params} & \textbf{Emb.\ Dim}  &
+                \textbf{Latency (ms)}              & \textbf{STS-B}  & \textbf{Step-Wise?}}
+            \rowcolor{blue!8}
+            \gr{all-MiniLM-L6-v2 \emph{(selected)} & 22M             & 384                 & $\sim$80  & 82.3 & Yes}
+            \gr{all-mpnet-base-v2                  & 110M            & 768                 & $\sim$320 & 84.6 & No}
+            \gr{BGE-M3                             & 568M            & 1024                & $>$500    & 87.0 & No}
+            \gr{LLM hidden states                  & ---             & varies              & high      & ---  & No}
+            \gr{BM25 (lexical)                     & ---             & ---                 & $<$5      & 63.0 & Yes}
+        \end{gridtabular}
+    }
+    \\ \smallskip
+    \noindent\footnotesize{Latency figures are approximate per-query values on a single CPU core.
+        STS-B scores are Spearman correlations reported in the sentence-transformers
+        library benchmarks \citep{reimers2019sentence}.}
+\end{table}
+
+\noindent \textit{all-MiniLM-L6-v2} \citep{reimers2019sentence} is a six-layer
+MiniLM model distilled from a larger teacher, producing 384-dimensional
+embeddings with approximately 22M parameters and roughly 80ms inference latency
+on CPU. It achieves strong semantic performance on STS benchmarks while
+maintaining the lowest inference latency among semantically competitive models.
+
+\noindent \textit{all-mpnet-base-v2} achieves stronger semantic performance but
+requires approximately 110M parameters and incurs around 4× the inference
+latency. For iterative beam-search decoding in which the scorer is called at
+every step, this latency accumulates unacceptably over the full generation
+length.
+
+\noindent \textit{BGE-M3} \citep{chen2024bge} is a state-of-the-art multilingual
+retrieval encoder with stronger performance than MiniLM, but its 568M parameters
+and resulting inference latency make it infeasible for step-wise decoding on a
+single A100 GPU.
+
+\noindent \textit{LLM hidden states} as a relevance scorer would be circular:
+the LLM's last-layer representations encode the same parametric biases that cause
+hallucination. Using them as a relevance filter does not introduce any external
+grounding and defeats the purpose of the constraint mechanism.
+
+\noindent \textit{BM25} is fast and interpretable but a lexical retrieval
+method: it cannot capture semantic similarity between paraphrase-equivalent KG
+paths that share the same meaning but no surface tokens, which is common in
+Freebase relation strings.
+
+The conclusion is that all-MiniLM-L6-v2 provides the optimal balance of
+semantic quality and inference speed for iterative step-wise constraint
+filtering.
+
+\subsection{Cosine Similarity as a Hard Constraint Signal: From Soft Retrieval
+    to Binary Admission}
+
+In standard dense retrieval, cosine similarity produces a continuous relevance
+ranking over candidate documents. DCA-Trie's key conceptual contribution in this
+component is the conversion of this continuous signal into a \textit{binary
+    admission criterion} that determines which tokens the LLM is permitted to
+generate.
+
+Given a candidate KG path $p$ expressed as a natural language string
+$(e_0 \, r_1 \, e_1 \, r_2 \, e_2 \ldots)$, the question $q$, and the partial
+generation $y_{<t}$, the semantic relevance score is:
+
+\begin{equation}
+    \textsc{score}(p,\, q,\, y_{<t}) \;=\;
+    \cos\!\bigl(E(p),\;\, E(\text{concat}(q,\, y_{<t}))\bigr)
+    \label{eq:score}
+\end{equation}
+
+where $E(\cdot)$ is the all-MiniLM-L6-v2 encoder. The binary admission
+criterion is: admit $p$ to $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ if and
+only if $\textsc{score}(p, q, y_{<t}) \geq \tau$. This threshold function
+converts the continuous cosine similarity into a binary mask entry, integrating
+semantic relevance directly into the logit-masking framework of
+Equation~\eqref{eq:logitmask}. The threshold $\tau$ is the key hyperparameter
+controlling the precision-recall tradeoff of the relevance filter; its selection
+procedure is described in Chapter~3 and evaluated in Chapter~4.
+
+\begin{figure}[t]
+    \centering
+    \resizebox{\textwidth}{!}{
+        \begin{tikzpicture}[>=latex, font=\sffamily\small]
+            % Styles
+            \tikzstyle{data} = [draw=none, fill=gray!10, rounded corners, inner sep=6pt, align=center]
+            \tikzstyle{func} = [draw, rectangle, rounded corners, minimum height=1cm, minimum width=2cm, align=center, fill=blue!5]
+            \tikzstyle{score} = [draw=none, fill=green!10, rounded corners, inner sep=6pt, align=center]
+
+            % Nodes
+            \node[data] (inputs1) at (0, 1.5) {Question $q$ \\ + Prefix $y_{<t}$};
+            \node[data] (inputs2) at (0, -1.5) {Candidate path $p$ \\ (Text string)};
+
+            \node[func] (enc1) at (3.5, 1.5) {SBERT \\ Encoder};
+            \node[func] (enc2) at (3.5, -1.5) {SBERT \\ Encoder};
+
+            \node[func, fill=purple!10] (cosim) at (7, 0) {Cosine \\ Similarity};
+            \node[score] (scoreval) at (10, 0) {Score \\ $\in [-1, 1]$};
+
+            \node[func, fill=orange!10] (thresh) at (13, 0) {Threshold $\tau$ \\ ($\ge \tau$)};
+
+            \node[data, fill=teal!10] (valid) at (16.5, 0) {Admitted paths \\ $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$};
+            \node[data, fill=red!10] (mask) at (16.5, -2) {Binary logit mask \\ $\alpha_t \in \{0, -\infty\}$};
+
+            % Edges
+            \draw[->, thick] (inputs1) -- (enc1);
+            \draw[->, thick] (inputs2) -- (enc2);
+
+            \draw[->, thick] (enc1) -| node[above, pos=0.25, font=\scriptsize] {Query vector} (cosim);
+            \draw[->, thick] (enc2) -| node[below, pos=0.25, font=\scriptsize] {Path vector} (cosim);
+
+            \draw[->, thick] (cosim) -- (scoreval);
+            \draw[->, thick] (scoreval) -- (thresh);
+            \draw[->, thick] (thresh) -- node[above, font=\scriptsize] {Yes} (valid);
+
+            \draw[->, thick, dashed] (valid) -- (mask);
+
+            % Grouping box
+            \draw[dashed, gray] (2.2, 2.5) rectangle (4.8, -2.5);
+            \node[gray, anchor=south, font=\scriptsize\itshape] at (3.5, 2.5) {Shared Weights: all-MiniLM-L6-v2};
+
+        \end{tikzpicture}
+    }
+    \caption{End-to-end semantic scoring and binary admission pipeline.}
+    \label{fig:scoringpipeline}
+\end{figure}
+
+% -----------------------------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+% -----------------------------------------------------------------------------
+
+Sections~\ref{sec:hallucination}--\ref{sec:sbert} surveyed the landscape thematically. This section situates DCA-Trie within the most relevant prior work likely to be cited as baseline literature.
+
+\subsection{KG-Constrained Decoding: GCR, DoG, and the Unresolved Permissiveness Problem}
+
+GCR \citep{luo2024gcr} constructs a static KG-Trie from
+$f(\mathcal{G}, \mathcal{E}_q)$ before generation, reporting 92.6 Hits@1 on
+WebQSP and 100\% structural faithfulness. Its valid token set, however, is
+semantically blind and computationally unchanged across generation steps
+(Section~\ref{sec:constrained}). DoG \citep{li2024dog} makes the oracle dynamic,
+$f(\mathcal{G}, \mathcal{E}_q, t)$, by expanding the trie after each committed
+entity; this yields 90.99 Hits@1 on WebQSP and 76.08 on CWQ with 100\%
+structural faithfulness, but still without semantic conditioning and without
+precomputation. As shown in Equation~\eqref{eq:dog}, DoG expansion remains
+semantically blind because it admits KG neighbors regardless of relevance.
+
+The proposed DCA-Trie variants in Table~\ref{tab:related_work} are positioned
+to address this specific gap at the token-constraint level. DCA-Trie v1 applies
+question-conditioned semantic filtering in a static precomputed oracle,
+$f(\mathcal{G}, \mathcal{E}_q, q)$. DCA-Trie v2 further adds step-wise
+conditioning on partial generation,
+$f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$, with partial precomputation. In
+both variants, semantic conditioning is incorporated into the hard constraint
+itself while preserving the structural-faithfulness guarantee by construction;
+their Hits@1 values remain TBD in this chapter.
+
+
+\begin{table}[H]
+    \centering
+    \caption{Primary related work comparison.}
+    \label{tab:related_work}
+    \small
+    \resizebox{\textwidth}{!}{%
+        \begin{gridtabular}{l|c|c|c|c|c|c}
+            \gr{\textbf{Method} & \textbf{Oracle} & \textbf{Faithfulness} & \textbf{Sem.\ Cond.} & \textbf{Dynamic} & \textbf{Precomp.} & \textbf{Hits@1}}
+            \gr{
+                GCR \citep{luo2024gcr} & $f(\mathcal{G},\mathcal{E}_q)$ & 100\% & No & No & Yes & 92.6 }
+            \gr{
+                \textbf{DoG} \citep{li2024dog} & \textbf{$f(\mathcal{G},\mathcal{E}_q,t)$} & \textbf{100\%} & \textbf{No} & \textbf{Yes} & \textbf{No} & \textbf{90.99} (WebQSP) / \textbf{76.08} (CWQ) }
+            \gr{
+                RouterKGQA \citep{yuan2026routerkgqa} & Routing + filter & Partial & Yes (answer) & Yes & N/A & +0.49 vs GCR}
+            \gr{
+                \textbf{DCA-Trie v1} (proposed) & \textbf{$f(\mathcal{G},\mathcal{E}_q,q)$} & \textbf{100\%} & \textbf{Yes (token)} & \textbf{No} & \textbf{Yes} & \textbf{TBD}}
+            \gr{
+            \textbf{DCA-Trie v2} (proposed) & \textbf{$f(\mathcal{G},\mathcal{E}_q,q,y_{<t})$} & \textbf{100\%} & \textbf{Yes (token)} & \textbf{Yes} & \textbf{Partial} & \textbf{TBD}}
+        \end{gridtabular}
+    }
+\end{table}
+
+\subsection{Hallucination Mitigation and KGQA: The Soft-to-Hard Spectrum}
+
+Soft grounding approaches constitute one cluster of related work. RAG
+\citep{lewis2020retrieval}, Self-RAG \citep{asai2024selfrag}, GraphRAG
+\citep{edge2024graphrag}, DAGQA \citep{he2021multihop}, QA-GNN
+\citep{yasunaga2021qagnn}, and self-consistency \citep{wang2023selfconsistency}
+all improve faithfulness in expectation by providing the LLM with relevant
+external context or by aggregating over multiple generation samples. As
+established formally in Section~\ref{sec:rag}, none of these approaches modifies
+the token selection mechanism: they cannot guarantee structural faithfulness with
+probability one, because every token in $\mathcal{V}$ retains strictly positive
+probability at every step.
+
+Format-constrained decoding constitutes the second cluster. GCD \citep{geng2023gcd},
+Outlines \citep{willard2023outlines}, and entity-constrained generation
+\citep{decao2021autoregressive} establish the logit-masking paradigm on which
+DCA-Trie builds. These works constrain output format or entity vocabulary rather
+than multi-hop KG path faithfulness: their constraint oracle is a function of a
+grammar or entity list, not of a knowledge graph with relational structure.
+DCA-Trie inherits the logit-masking mechanism from this line of work and extends
+it to semantically conditioned KG path constraints.
+
+\subsection{Semantic Similarity for Graph Reasoning: The Retrieval-Constraint Boundary}
+
+Several works apply semantic similarity signals in graph-based reasoning. Path retrieval for KGQA \citep{shi2021kgpath, saxena2022kgqa} uses semantic similarity to rank candidate paths for retrieval. Attention-guided graph traversal in DAGQA \citep{he2021multihop} uses attention weights to focus multi-hop reasoning.Semantic path reranking approaches select among candidate answers after generation. In every case, semantic similarity operates as a \textit{soft signal}  that influences which paths the LLM sees or which answer is selected after generation; it does not apply semantic similarity as a hard binary admission criterion that determines which tokens the LLM is
+\textit{permitted} to generate.
+
+This distinction between soft signals and hard constraints defines the exact novelty boundary of DCA-Trie. No prior work combines semantic relevance scoring with hard constraint oracle construction. Works that provide structural faithfulness (GCR,DoG) do not condition on semantics. Works that use semantic similarity (path retrieval, reranking) do
+not provide structural faithfulness. DCA-Trie is the first framework to achieve both simultaneously, and the Semantic Irrelevance Ratio introduced in Chapter~3 is the first metric designed to measure this property directly.
+
+\subsection{Concurrent and Subsequent Work: Positioning DCA-Trie}
+\label{sec:concurrent_work}
+
+The research landscape has evolved rapidly since the foundational works of GCR~\citep{luo2024gcr} and DoG~\citep{li2024dog}. Most notably, \textbf{RouterKGQA}~\citep{yuan2026routerkgqa} proposes a specialized--general model routing framework that achieves strong performance with minimal inference cost. RouterKGQA employs constraint-aware reasoning paths and uses SBERT (nomic-embed-text-v1) for semantic filtering during answer selection, achieving 3.57 F1 point improvements over GCR on WebQSP and CWQ while requiring only 1.15 LLM calls per question~\citep{yuan2026routerkgqa}.
+
+\subsubsection{Differentiation of DCA-Trie}
+
+While RouterKGQA and DCA-Trie both employ semantic relevance scoring, they operate at fundamentally different architectural levels:
+
+\begin{table}[H]
+    \centering
+    \caption{Architectural comparison of RouterKGQA and DCA-Trie.}
+    \label{tab:routerkgqa_comparison}
+    \small
+    \resizebox{\textwidth}{!}{%
+        \begin{gridtabular}{l|c|c}
+            \gr{\textbf{Aspect}        & \textbf{RouterKGQA}                           & \textbf{DCA-Trie}                            }\gr{
+
+                Intervention Point     & Answer filtering (post-generation)            & Token constraint (during generation)          }\gr{
+                Mechanism              & Routes between specialized and general models & Modifies the constraint oracle directly        }\gr{
+                Semantic Scoring       & Filters final candidate answers               & Filters valid token sets at each decoding step }\gr{
+                Faithfulness Guarantee & Probabilistic (repair when needed)            & Deterministic (hard constraint at every step)  }\gr{
+                Metric Innovation      & Efficiency (LLM calls)                        & Constraint quality (SIR)                       }
+        \end{gridtabular}
+    }
+\end{table}
+
+RouterKGQA's semantic filtering operates on complete reasoning paths after generation, whereas DCA-Trie's semantic scoring constrains the \emph{decoding process itself}--ensuring that the LLM never sees semantically irrelevant tokens during generation. This distinction is critical: DCA-Trie reduces the cognitive load on the LLM by narrowing the valid vocabulary at each step, while RouterKGQA relies on the LLM to generate paths then filters retrospectively.
+
+Furthermore, DCA-Trie introduces the \textbf{Semantic Irrelevance Ratio (SIR)}, the first metric to isolate and quantify constraint permissiveness independently of downstream generation accuracy. RouterKGQA does not provide a direct measure of how many structurally valid but semantically irrelevant paths enter its candidate set; DCA-Trie's SIR metric fills this evaluation gap.
+
+% -----------------------------------------------------------------------------
+\section{Synthesis of the Literature: Three Unresolved Gaps and the DCA-Trie Contribution}
+\label{sec:synthesis}
+% -----------------------------------------------------------------------------
+
+This section synthesizes the findings of the literature review by formalizing three distinct research gaps. Each limitation is then explicitly mapped to a proposed component of the DCA-Trie architecture and its corresponding project objective, establishing the foundation for the methodology detailed in Chapter~3.
+
+\subsection{Three Unresolved Gaps at the Intersection of Structural Faithfulness, Semantic Relevance, and Constraint Measurability}
+
+\textbf{Gap~1: The Permissiveness Problem.} GCR and DoG construct constraint oracles as $f(\mathcal{G}, \mathcal{E}_q)$, independent of question semantics and partial generation. For a three-hop CWQ question, Equation~\eqref{eq:pathgrowth} shows this produces a valid token set containing up to 24,000 structurally correct but semantically irrelevant paths, forcing the LLM to use hallucination-prone parametric knowledge for discrimination, precisely the mechanism constrained decoding was designed to suppress \citep{luo2024gcr,li2024dog}.
+
+\textbf{Gap~2: The Static-Dynamic Efficiency Tradeoff.} GCR's precomputed
+static trie is computationally efficient but semantically blind. DoG's step-wise
+topological expansion introduces dynamism at the cost of per-step trie
+reconstruction and without semantic filtering \citep{li2024dog,
+    willard2023outlines}. No existing framework achieves semantic responsiveness
+while preserving the efficiency of a precomputed oracle.
+
+\textbf{Gap~3: The Absence of a Permissiveness Metric.} No existing work
+quantifies constraint permissiveness independently of downstream answer accuracy,
+making it impossible to measure progress on reducing irrelevant paths in the valid
+set directly or to compare frameworks on this property \citep{luo2024gcr,
+    li2024dog}.
+
+\begin{table}[H]
+    \centering
+    \caption{Consolidated gap matrix for KG-constrained decoding frameworks.}
+    \label{tab:gaps}
+    \small
+    \begin{threeparttable}
+        \resizebox{\textwidth}{!}{%
+            \begin{gridtabular}{l|c|c|c|c|c}
+                \gr{\textbf{Framework} & \textbf{Faithfulness} & \textbf{Sem.\ Cond.} & \textbf{Dynamic} & \textbf{Precomp.} & \textbf{SIR}}
+                \gr{GCR \citep{luo2024gcr} & \checkmark & No & No & \checkmark & No}
+                \gr{DoG \citep{li2024dog} & \checkmark & No & \checkmark & No & No}
+                \gr{RouterKGQA \citep{yuan2026routerkgqa} & $\sim$\tnote{a} & \checkmark (answer) & \checkmark & N/A & No}
+                \gr{DCA-Trie v1 (proposed) & \checkmark & \checkmark (token) & No & \checkmark & \checkmark}
+                \gr{DCA-Trie v2 (proposed) & \checkmark & \checkmark (token) & \checkmark & Partial & \checkmark}
+            \end{gridtabular}%
+        }
+        \begin{tablenotes}
+            \item[a] Probabilistic faithfulness via repair mechanism; not guaranteed.
+        \end{tablenotes}
+    \end{threeparttable}
+\end{table}
+
+\subsection{DCA-Trie as the Unified Response: Gap-to-Objective Mapping}
+
+Each gap maps directly to a DCA-Trie component and project objective. \textbf{Gap~1} is addressed by DCA-Trie's semantic relevance scorer applied as a hard admission criterion, formally upgrading the constraint oracle from $f(\mathcal{G}, \mathcal{E}_q)$ to $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$, targeting project Objectives~ii, iii, and~iv. \textbf{Gap~2} is addressed by the two-variant design: DCA-Trie v1 applies semantic filtering at trie construction time, preserving precomputation efficiency (Objective~iii); DCA-Trie v2 applies step-wise dynamic expansion with semantic filtering for maximum contextual responsiveness (Objective~iv). \textbf{Gap~3} is addressed by the Semantic Irrelevance Ratio (SIR), a new metric introduced in Chapter~3 that quantifies the proportion of the valid set consisting of semantically irrelevant paths (Objective~i).
+
+DCA-Trie is the first constrained decoding framework to simultaneously address all three gaps, providing structural faithfulness, semantic relevance conditioning, and a dedicated permissiveness metric. RouterKGQA addresses efficiency through routing but does not provide deterministic faithfulness guarantees or constraint-level evaluation; DCA-Trie fills these critical gaps. These constitute the three novel contributions of this dissertation.
+
+\begin{table}[H]
+    \centering
+    \caption{DCA-Trie contribution mapping.}
+    \label{tab:contributions}
+    \small
+    \resizebox{\textwidth}{!}{
+        \begin{gridtabular}{l|l|l|l}
+            \gr{\textbf{Research Gap}                 & \textbf{DCA-Trie Component} &
+                \textbf{Objective}                    & \textbf{Evaluated In}}
+            \gr{Gap 1: Permissiveness Problem         &
+                Semantic scorer + threshold $\tau$    &
+                Obj.\ ii, iii, iv                     &
+                Ch.\ 3--4}
+            \gr{Gap 2: Static-Dynamic Tradeoff        &
+                v1 (static) and v2 (dynamic) variants &
+                Obj.\ iii, iv                         &
+                Ch.\ 3--4}
+            \gr{Gap 3: No Permissiveness Metric       &
+                Semantic Irrelevance Ratio (SIR)      &
+                Obj.\ i                               &
+                Ch.\ 3--4}
+        \end{gridtabular}
+    }
+\end{table}

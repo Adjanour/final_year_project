@@ -38,3 +38,8 @@ WebQuestions
 Subgraph
 RouterKGQA
 Earley
+siamese
+compositionally
+LLM-based
+LLM-generated
+Trie-Based
