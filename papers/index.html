@@ -1,0 +1,1305 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Paper Library</title>
+    <style>
+      :root {
+        --bg: #f3f3f1;
+        --bg-alt: #e7e7e3;
+        --panel: rgba(255, 255, 255, 0.94);
+        --panel-soft: rgba(255, 255, 255, 0.78);
+        --panel-strong: #0e0e0f;
+        --line: rgba(0, 0, 0, 0.12);
+        --line-strong: rgba(0, 0, 0, 0.26);
+        --text: #101113;
+        --muted: #5c6066;
+        --soft: #8f949b;
+        --badge: #ededeb;
+        --shadow: 0 16px 36px rgba(0, 0, 0, 0.07);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent 15rem),
+          linear-gradient(180deg, #f6f6f4 0%, #ecece8 100%);
+        font-family: "Avenir Next", "Helvetica Neue", "Franklin Gothic Book", sans-serif;
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(0, 0, 0, 0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(0, 0, 0, 0.025) 1px, transparent 1px);
+        background-size: 26px 26px;
+        mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent);
+      }
+
+      main {
+        position: relative;
+        max-width: 1480px;
+        margin: 0 auto;
+        padding: 30px 20px 56px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+        gap: 18px;
+        margin-bottom: 18px;
+      }
+
+      .hero-card,
+      .meta-card,
+      .toolbar-shell,
+      .table-shell {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(6px);
+      }
+
+      .hero-card {
+        padding: 24px 26px 22px;
+        border-radius: 6px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+          var(--panel-strong);
+        border-color: rgba(255, 255, 255, 0.08);
+        color: #f3f4f6;
+      }
+
+      .meta-card {
+        padding: 18px 20px;
+        border-radius: 6px;
+        display: grid;
+        gap: 0;
+        align-content: start;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(246, 246, 243, 0.94)),
+          var(--panel-soft);
+      }
+
+      .eyebrow {
+        display: inline-block;
+        padding: 5px 9px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #d8dbe0;
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 12px 0 10px;
+        font-family: Charter, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: clamp(1.8rem, 2.7vw, 3.15rem);
+        line-height: 1.04;
+        letter-spacing: -0.03em;
+      }
+
+      .lede {
+        max-width: 70ch;
+        margin: 0;
+        color: rgba(243, 244, 246, 0.78);
+        font-size: 0.86rem;
+        line-height: 1.58;
+      }
+
+      .hero-notes {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      .note-chip {
+        padding: 10px 10px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .note-label {
+        display: block;
+        margin-bottom: 5px;
+        color: #9aa0a9;
+        font-size: 0.67rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .note-value {
+        color: #f4f4f5;
+        font-size: 0.8rem;
+        line-height: 1.4;
+      }
+
+      .meta-intro {
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .meta-kicker {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .meta-copy {
+        margin: 8px 0 0;
+        font-family: Charter, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: 1rem;
+        line-height: 1.35;
+      }
+
+      .metric-band {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .metric-block {
+        min-width: 0;
+      }
+
+      .metric-value {
+        display: block;
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 0.94;
+        letter-spacing: -0.04em;
+      }
+
+      .metric-caption {
+        display: block;
+        margin-top: 7px;
+        color: var(--muted);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .meta-row {
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr);
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .stat-label {
+        color: var(--muted);
+        font-size: 0.67rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+      }
+
+      .stat-value {
+        font-size: 0.94rem;
+        line-height: 1.45;
+        font-weight: 600;
+      }
+
+      .toolbar-shell {
+        position: sticky;
+        top: 14px;
+        z-index: 4;
+        margin-bottom: 14px;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .toolbar-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 13px 14px 10px;
+        border-bottom: 1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 244, 240, 0.92)),
+          var(--panel-soft);
+      }
+
+      .toolbar-title {
+        margin: 0;
+        font-size: 0.73rem;
+        font-weight: 800;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .toolbar-subtitle {
+        margin: 5px 0 0;
+        font-family: Charter, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: 0.95rem;
+      }
+
+      .toolbar-meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .results-pill,
+      .filter-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 6px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.88);
+        color: var(--text);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+      }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 200px 170px auto;
+        gap: 12px;
+        padding: 12px 14px 14px;
+        background: rgba(255, 255, 255, 0.82);
+      }
+
+      .toolbar input,
+      .toolbar select {
+        width: 100%;
+        padding: 9px 10px;
+        border-radius: 3px;
+        border: 1px solid var(--line);
+        background: #ffffff;
+        color: var(--text);
+        font: inherit;
+        font-size: 0.82rem;
+      }
+
+      .view-switch {
+        display: inline-flex;
+        gap: 0;
+        justify-self: end;
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        overflow: hidden;
+        background: #ffffff;
+      }
+
+      .view-button {
+        padding: 8px 10px;
+        border: 0;
+        border-right: 1px solid var(--line);
+        background: transparent;
+        color: var(--text);
+        font: inherit;
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+
+      .view-button:last-child {
+        border-right: 0;
+      }
+
+      .view-button.is-active {
+        background: #111214;
+        color: #f4f4f5;
+      }
+
+      .toolbar input:focus,
+      .toolbar select:focus {
+        outline: 2px solid rgba(0, 0, 0, 0.15);
+        outline-offset: 1px;
+        border-color: var(--line-strong);
+      }
+
+      .table-shell {
+        overflow: hidden;
+        border-radius: 6px;
+      }
+
+      .table-scroll {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        min-width: 1160px;
+      }
+
+      thead th {
+        padding: 11px 12px;
+        text-align: left;
+        font-size: 0.66rem;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        background: #efefec;
+        border-bottom: 1px solid var(--line-strong);
+      }
+
+      tbody td {
+        padding: 11px 12px;
+        vertical-align: top;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+      }
+
+      tbody tr:hover {
+        background: rgba(0, 0, 0, 0.025);
+      }
+
+      .short {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 7px;
+        border-radius: 3px;
+        background: #111214;
+        color: #f5f5f5;
+        font-weight: 700;
+        font-size: 0.71rem;
+        letter-spacing: 0.03em;
+      }
+
+      .title {
+        font-family: Charter, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: 0.92rem;
+        line-height: 1.32;
+        margin: 0 0 6px;
+      }
+
+      .citation {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.77rem;
+        line-height: 1.45;
+      }
+
+      .summary {
+        margin: 0;
+        color: #202226;
+        font-size: 0.79rem;
+        line-height: 1.48;
+      }
+
+      .tag {
+        display: inline-block;
+        margin-bottom: 8px;
+        padding: 4px 8px;
+        border-radius: 3px;
+        background: var(--badge);
+        color: #23262a;
+        font-size: 0.66rem;
+        font-weight: 700;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+      }
+
+      .file {
+        color: var(--muted);
+        font-size: 0.72rem;
+        line-height: 1.45;
+        word-break: break-word;
+      }
+
+      .open-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 66px;
+        padding: 7px 9px;
+        border-radius: 3px;
+        background: var(--text);
+        color: #fafafa;
+        text-decoration: none;
+        font-weight: 700;
+        border: 1px solid #111214;
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .open-link:hover {
+        background: #2a2c31;
+      }
+
+      .empty {
+        padding: 28px;
+        color: var(--muted);
+        background: #ffffff;
+      }
+
+      .study-shell {
+        display: none;
+        margin-top: 12px;
+      }
+
+      .study-shell.is-active {
+        display: block;
+      }
+
+      .study-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .study-card {
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.94);
+        padding: 12px 12px 11px;
+        box-shadow: var(--shadow);
+      }
+
+      .study-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+      }
+
+      .study-meta {
+        color: var(--muted);
+        font-size: 0.77rem;
+        line-height: 1.4;
+      }
+
+      .study-use {
+        margin: 8px 0 0;
+        padding-top: 8px;
+        border-top: 1px solid rgba(0, 0, 0, 0.08);
+        color: #202226;
+        font-size: 0.8rem;
+        line-height: 1.5;
+      }
+
+      footer {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 0.84rem;
+        line-height: 1.6;
+        padding: 14px 0 0;
+      }
+
+      footer a {
+        color: inherit;
+      }
+
+      @media (max-width: 980px) {
+        .hero,
+        .toolbar,
+        .metric-band {
+          grid-template-columns: 1fr;
+        }
+
+        .study-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-notes {
+          grid-template-columns: 1fr;
+        }
+
+        main {
+          padding: 24px 14px 42px;
+        }
+
+        .meta-row {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+
+        .toolbar-shell {
+          position: static;
+        }
+
+        .toolbar-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="hero">
+        <article class="hero-card">
+          <span class="eyebrow">Academic Dashboard</span>
+          <h1>Knowledge graph, LLM, and constrained generation research dashboard</h1>
+          <p class="lede">
+            A single-page research catalog for the PDFs in this folder. Use the dashboard controls to
+            filter by title, author, year, topic, filename, or shorthand name, then open any paper or
+            local note directly from the table.
+          </p>
+          <div class="hero-notes">
+            <div class="note-chip">
+              <span class="note-label">Primary Use</span>
+              <span class="note-value">Literature review, topic mapping, and citation triage.</span>
+            </div>
+            <div class="note-chip">
+              <span class="note-label">Visual Mode</span>
+              <span class="note-value">Monochrome academic dashboard with reduced-radius components.</span>
+            </div>
+            <div class="note-chip">
+              <span class="note-label">Curation Policy</span>
+              <span class="note-value">Unique papers are indexed. Duplicate raw downloads are archived separately.</span>
+            </div>
+          </div>
+        </article>
+        <aside class="meta-card">
+          <div class="meta-intro">
+            <p class="meta-kicker">Research Ledger</p>
+            <p class="meta-copy">Built for fast literature review, file opening, and bibliography cleanup.</p>
+          </div>
+          <div class="metric-band">
+            <div class="metric-block">
+              <span class="metric-value" id="paper-count">56</span>
+              <span class="metric-caption">Total papers</span>
+            </div>
+            <div class="metric-block">
+              <span class="metric-value" id="visible-count">56</span>
+              <span class="metric-caption">Visible now</span>
+            </div>
+          </div>
+          <div class="meta-row">
+            <span class="stat-label">Scope</span>
+            <div class="stat-value">KGQA, LLM reasoning, retrieval, decoding, evaluation, and graph-grounded generation.</div>
+          </div>
+          <div class="meta-row">
+            <span class="stat-label">Duplicates</span>
+            <div class="stat-value">7 archived raw-download copies kept outside the active catalog.</div>
+          </div>
+          <div class="meta-row" style="border-bottom: 0; padding-bottom: 0;">
+            <span class="stat-label">Mode</span>
+            <div class="stat-value">Table view for exact lookup, Study view for topic scanning and related-work drafting.</div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="toolbar-shell">
+        <div class="toolbar-head">
+          <div>
+            <p class="toolbar-title">Catalog Controls</p>
+            <p class="toolbar-subtitle">Filter the library by topic, year, citation text, filename, or shorthand paper name.</p>
+          </div>
+          <div class="toolbar-meta">
+            <span class="results-pill" id="results-pill">56 visible</span>
+            <span class="filter-pill" id="filter-pill">All topics</span>
+          </div>
+        </div>
+        <div class="toolbar">
+          <input id="search" type="search" placeholder="Search title, citation, summary, tag, year, or filename" />
+          <select id="sort">
+            <option value="year-desc">Sort: year, newest first</option>
+            <option value="year-asc">Sort: year, oldest first</option>
+            <option value="title-asc">Sort: title A-Z</option>
+            <option value="alias-asc">Sort: short name A-Z</option>
+          </select>
+          <select id="topic">
+            <option value="all">All topics</option>
+          </select>
+          <div class="view-switch" role="tablist" aria-label="View mode">
+            <button class="view-button is-active" id="table-view-button" type="button">Table</button>
+            <button class="view-button" id="study-view-button" type="button">Study View</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="table-shell" id="table-shell">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Short Name</th>
+                <th>Year</th>
+                <th>Paper</th>
+                <th>Summary</th>
+                <th>File</th>
+                <th>Open</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <div id="empty" class="empty" hidden>No papers match the current filters.</div>
+      </section>
+
+      <section class="study-shell" id="study-shell">
+        <div class="study-grid" id="study-grid"></div>
+      </section>
+
+      <footer>
+        The page links to the local PDFs in this directory. Duplicate raw downloads have been moved
+        to <a href="duplicates/">duplicates/</a> and are not double-counted in the table. Two source
+        links from the original list were corrected during earlier curation: ReaRev and EffiQA.
+      </footer>
+    </main>
+
+    <script>
+      const papers = [
+        {
+          alias: "OpenKE",
+          year: 2018,
+          topic: "Toolkit / Embeddings",
+          title: "OpenKE: An Open Toolkit for Knowledge Embedding",
+          citation: "Han et al., EMNLP 2018",
+          summary: "Introduces a reusable toolkit that standardizes training, evaluation, and comparison for a wide range of knowledge graph embedding models.",
+          file: "sun2018-openke.pdf"
+        },
+        {
+          alias: "Subgraph Retrieval",
+          year: 2022,
+          topic: "KGQA / Retrieval",
+          title: "Subgraph Retrieval Enhanced Model for Multi-hop Knowledge Base Question Answering",
+          citation: "Zhang et al., ACL 2022",
+          summary: "Decouples trainable subgraph retrieval from downstream reasoning so KBQA models can reason over better question-specific subgraphs with less bias.",
+          file: "zhang2022-subgraph-retrieval-enhanced-model.pdf"
+        },
+        {
+          alias: "KEPLER",
+          year: 2021,
+          topic: "Embeddings / PLM",
+          title: "KEPLER: A Unified Model for Knowledge Embedding and Pre-trained Language Representation",
+          citation: "Wang et al., TACL 2021",
+          summary: "Jointly optimizes language modeling and knowledge embedding so textual entity descriptions and graph facts improve one another in a single model.",
+          file: "wang2021-kepler.pdf"
+        },
+        {
+          alias: "PullNet",
+          year: 2019,
+          topic: "KGQA / Retrieval",
+          title: "PullNet: Open Domain Question Answering with Iterative Retrieval on Knowledge Bases and Text",
+          citation: "Sun et al., EMNLP 2019",
+          summary: "Builds a question-specific subgraph by iteratively pulling evidence from both text and knowledge bases before reasoning over the combined graph.",
+          file: "sun2019-pullnet.pdf"
+        },
+        {
+          alias: "KG Eval OWA",
+          year: 2022,
+          topic: "Evaluation",
+          title: "Rethinking Knowledge Graph Evaluation Under the Open-World Assumption",
+          citation: "Yang et al., NeurIPS 2022",
+          summary: "Argues that standard link prediction evaluation is distorted by the closed-world assumption and proposes more realistic open-world evaluation settings.",
+          file: "he2022-rethinking-kg-evaluation.pdf"
+        },
+        {
+          alias: "ReaRev",
+          year: 2022,
+          topic: "KGQA / Reasoning",
+          title: "ReaRev: Adaptive Reasoning for Question Answering over Knowledge Graphs",
+          citation: "Mavromatis and Karypis, Findings of EMNLP 2022",
+          summary: "Improves KGQA by adaptively refining question instructions with KG-aware signals and executing them with a breadth-first-search-like graph neural strategy.",
+          file: "mavromatis2022-rearev.pdf"
+        },
+        {
+          alias: "MINERVA",
+          year: 2018,
+          topic: "KGQA / Retrieval",
+          title: "Go for a Walk and Arrive at the Answer: Reasoning over Paths in Knowledge Bases using Reinforcement Learning",
+          citation: "Das et al., ICLR 2018",
+          summary: "Frames KB reasoning as reinforcement learning, where an agent walks through graph paths from a query entity to discover the answer entity.",
+          file: "das2018-minerva-go-for-a-walk.pdf"
+        },
+        {
+          alias: "Grid Beam Search",
+          year: 2017,
+          topic: "Constrained Decoding",
+          title: "Lexically Constrained Decoding for Sequence Generation Using Grid Beam Search",
+          citation: "Hokamp and Liu, ACL 2017",
+          summary: "Extends beam search so generation can satisfy required lexical constraints without retraining the underlying sequence model.",
+          file: "hokamp2017-grid-beam-search.pdf"
+        },
+        {
+          alias: "NeuroLogic",
+          year: 2021,
+          topic: "Constrained Decoding",
+          title: "NeuroLogic Decoding: (Un)supervised Neural Text Generation with Predicate Logic Constraints",
+          citation: "Lu et al., NAACL 2021",
+          summary: "Adds predicate-logic constraints to decoding so neural generation can satisfy richer symbolic requirements than plain lexical inclusion.",
+          file: "lu2021-neurologic-decoding.pdf"
+        },
+        {
+          alias: "Guided Captioning",
+          year: 2017,
+          topic: "Constrained Decoding",
+          title: "Guided Open Vocabulary Image Captioning with Constrained Beam Search",
+          citation: "Anderson et al., EMNLP 2017",
+          summary: "Uses constrained beam search and expanded word embeddings so captioning models can name previously unseen objects without retraining.",
+          file: "anderson2017-guided-open-vocabulary-captioning.pdf"
+        },
+        {
+          alias: "Synchromesh",
+          year: 2022,
+          topic: "Constrained Decoding",
+          title: "Synchromesh: Reliable Code Generation from Pre-trained Language Models",
+          citation: "Poesia et al., ICLR 2022",
+          summary: "Combines example retrieval with constrained semantic decoding to generate code that better respects syntax, scope, and semantic validity.",
+          file: "poesia2022-synchromesh.pdf"
+        },
+        {
+          alias: "GeLaTo",
+          year: 2023,
+          topic: "Constrained Decoding",
+          title: "Tractable Control for Autoregressive Language Generation",
+          citation: "Zhang et al., ICML 2023",
+          summary: "Uses tractable probabilistic models to guide autoregressive generation toward outputs that satisfy lexical constraints more faithfully.",
+          file: "zhang2023-tractable-control-autoregressive-generation.pdf"
+        },
+        {
+          alias: "CoT",
+          year: 2022,
+          topic: "LLM Reasoning",
+          title: "Chain-of-Thought Prompting Elicits Reasoning in Large Language Models",
+          citation: "Wei et al., NeurIPS 2022",
+          summary: "Shows that prompting models with intermediate reasoning steps unlocks much stronger arithmetic, symbolic, and commonsense performance.",
+          file: "wei2022-chain-of-thought.pdf"
+        },
+        {
+          alias: "Self-Consistency",
+          year: 2023,
+          topic: "LLM Reasoning",
+          title: "Self-Consistency Improves Chain of Thought Reasoning in Language Models",
+          citation: "Wang et al., ICLR 2023",
+          summary: "Samples multiple reasoning paths and chooses the most consistent final answer instead of trusting a single greedy chain of thought.",
+          file: "wang2023-self-consistency.pdf"
+        },
+        {
+          alias: "Tree of Thoughts",
+          year: 2023,
+          topic: "LLM Reasoning",
+          title: "Tree of Thoughts: Deliberate Problem Solving with Large Language Models",
+          citation: "Yao et al., 2023",
+          summary: "Generalizes chain-of-thought prompting into tree search over candidate thoughts so models can explore, backtrack, and evaluate alternatives.",
+          file: "yao2023-tree-of-thought.pdf"
+        },
+        {
+          alias: "RoG",
+          year: 2024,
+          topic: "LLM + KG",
+          title: "Reasoning on Graphs: Faithful and Interpretable Large Language Model Reasoning",
+          citation: "Luo et al., 2024",
+          summary: "Pairs LLM planning with graph-based retrieval and reasoning so answers are grounded in explicit KG paths instead of unsupported free-form generation.",
+          file: "luo2024-rog.pdf"
+        },
+        {
+          alias: "GNN-RAG",
+          year: 2024,
+          topic: "LLM + KG",
+          title: "GNN-RAG: Graph Neural Retrieval for Large Language Model Reasoning",
+          citation: "Mavromatis and Karypis, 2024",
+          summary: "Uses graph neural retrieval to surface relevant KG evidence for LLM reasoning, blending neural graph structure with retrieval-augmented generation.",
+          file: "mavromatis2024-gnn-rag.pdf"
+        },
+        {
+          alias: "StructGPT",
+          year: 2023,
+          topic: "Structured Reasoning",
+          title: "StructGPT: A General Framework for Large Language Model to Reason over Structured Data",
+          citation: "Jiang et al., EMNLP 2023",
+          summary: "Separates structured-data reading from reasoning by letting the LLM call interfaces that fetch evidence from tables, graphs, and databases.",
+          file: "jiang2023-structgpt.pdf"
+        },
+        {
+          alias: "Think-on-Graph",
+          year: 2024,
+          topic: "LLM + KG",
+          title: "Think-on-Graph: Deep and Responsible Reasoning of Large Language Model on Knowledge Graph",
+          citation: "Sun et al., ICLR 2024",
+          summary: "Treats the LLM as an agent that explores KGs with beam search, aiming for stronger multi-hop reasoning plus traceable evidence paths.",
+          file: "sun2024-think-on-graph.pdf"
+        },
+        {
+          alias: "KD-CoT",
+          year: 2023,
+          topic: "LLM + KG",
+          title: "Knowledge-Driven CoT: Exploring Faithful Reasoning in LLMs for Knowledge-intensive Question Answering",
+          citation: "Wang et al., 2023",
+          summary: "Uses external knowledge sources to verify and revise intermediate chain-of-thought steps so reasoning stays more faithful on knowledge-intensive QA.",
+          file: "wang2023-kd-cot.pdf"
+        },
+        {
+          alias: "GENRE",
+          year: 2021,
+          topic: "Retrieval / Generation",
+          title: "Autoregressive Entity Retrieval",
+          citation: "De Cao et al., ICLR 2021",
+          summary: "Recasts entity retrieval as autoregressive text generation, enabling exact entity prediction without a large conventional classifier head.",
+          file: "decao2021-genre-autoregressive-entity-retrieval.pdf"
+        },
+        {
+          alias: "Tree-of-Traversals",
+          year: 2024,
+          topic: "LLM + KG",
+          title: "Tree-of-Traversals: A Zero-Shot Reasoning Algorithm for Augmenting Black-box Language Models with Knowledge Graphs",
+          citation: "Markowitz et al., 2024",
+          summary: "Lets a black-box LLM perform tree search over thoughts and KG actions, improving question answering without model fine-tuning.",
+          file: "markowitz2024-tree-of-traversals.pdf"
+        },
+        {
+          alias: "EffiQA",
+          year: 2024,
+          topic: "LLM + KG",
+          title: "EffiQA: Efficient Question-Answering with Strategic Multi-Model Collaboration on Knowledge Graphs",
+          citation: "Dong et al., 2024",
+          summary: "Splits work between an LLM for high-level planning and a smaller plug-in model for efficient KG exploration to balance cost and QA accuracy.",
+          file: "dong2024-effiqa.pdf"
+        },
+        {
+          alias: "LLM-KG Roadmap",
+          year: 2024,
+          topic: "Survey",
+          title: "Unifying Large Language Models and Knowledge Graphs: A Roadmap",
+          citation: "Pan et al., 2024",
+          summary: "Surveys the main ways LLMs and knowledge graphs can strengthen each other, from KG-enhanced LLMs to LLM-augmented KG pipelines.",
+          file: "pan2024-unifying-llms-and-kgs-survey.pdf"
+        },
+        {
+          alias: "G-Retriever",
+          year: 2024,
+          topic: "Graph RAG",
+          title: "G-Retriever: Retrieval-Augmented Generation for Textual Graph Understanding and Question Answering",
+          citation: "He et al., 2024",
+          summary: "Builds a graph-aware retrieval pipeline so users can ask natural-language questions about textual graphs and receive evidence-grounded answers.",
+          file: "he2024-g-retriever.pdf"
+        },
+        {
+          alias: "2WikiMultiHopQA",
+          year: 2020,
+          topic: "Dataset",
+          title: "Constructing a Multi-hop QA Dataset for Comprehensive Evaluation of Reasoning Steps",
+          citation: "Ho et al., COLING 2020",
+          summary: "Introduces a multi-hop QA dataset with explicit reasoning evidence so models can be evaluated on both final answers and intermediate reasoning steps.",
+          file: "ho2020-2wikimultihop.pdf"
+        },
+        {
+          alias: "Self-RAG",
+          year: 2024,
+          topic: "RAG",
+          title: "Self-RAG: Learning to Retrieve, Generate, and Critique Through Self-Reflection",
+          citation: "Asai et al., 2024",
+          summary: "Trains a model to decide when retrieval is needed, use retrieved evidence, and critique its own output instead of always relying on fixed RAG behavior.",
+          file: "asai2024-self-rag.pdf"
+        },
+        {
+          alias: "StructLM",
+          year: 2024,
+          topic: "Structured Reasoning",
+          title: "StructLM: Towards Building Generalist Models for Structured Knowledge Grounding",
+          citation: "Zhuang et al., 2024",
+          summary: "Creates large-scale instruction tuning data for tables, graphs, and databases to improve LLM performance on structured knowledge grounding tasks.",
+          file: "zhuang2024-structlm.pdf"
+        },
+        {
+          alias: "KA Prompting",
+          year: 2023,
+          topic: "LLM + KG",
+          title: "Knowledge-Augmented Language Model Prompting for Zero-Shot Knowledge Graph Question Answering",
+          citation: "Baek et al., 2023",
+          summary: "Retrieves KG facts relevant to the question and prepends them to the prompt so an LLM can answer KGQA queries in zero-shot settings.",
+          file: "baek2023-knowledge-augmented-llms-for-kgqa.pdf"
+        },
+        {
+          alias: "KG + LLM Hallucinations",
+          year: 2025,
+          topic: "Survey",
+          title: "Knowledge Graphs, Large Language Models, and Hallucinations: An NLP Perspective",
+          citation: "Lavrinovics et al., Web Semantics 2025",
+          summary: "Surveys how knowledge graphs and LLMs interact around factuality, with a focus on hallucination mechanisms and mitigation opportunities.",
+          file: "lavrinovics2025-kg-llm-hallucinations-nlp-perspective.pdf"
+        },
+        {
+          alias: "TruthfulQA",
+          year: 2022,
+          topic: "Benchmark",
+          title: "TruthfulQA: Measuring How Models Mimic Human Falsehoods",
+          citation: "Lin et al., ACL 2022",
+          summary: "Introduces a benchmark of questions where common misconceptions are tempting, testing whether models reproduce human falsehoods.",
+          file: "lin2022-truthfulqa.pdf"
+        },
+        {
+          alias: "Active RAG",
+          year: 2023,
+          topic: "RAG",
+          title: "Active Retrieval Augmented Generation",
+          citation: "Jiang et al., EMNLP 2023",
+          summary: "Trains retrieval-augmented generation to actively decide when and what to retrieve during generation rather than relying on a fixed retrieval stage.",
+          file: "jiang2023-active-retrieval-augmented-generation.pdf"
+        },
+        {
+          alias: "Text-to-SPARQL",
+          year: 2024,
+          topic: "KGQA / Text-to-SPARQL",
+          title: "Experiments with text-to-SPARQL based on ChatGPT",
+          citation: "Avila et al., ICSC 2024",
+          summary: "Empirically studies prompt-based text-to-SPARQL with ChatGPT and analyzes where the approach works and where it breaks down.",
+          file: "avila2024-experiments-text-to-sparql-chatgpt.pdf"
+        },
+        {
+          alias: "CoT Direct Eval",
+          year: 2024,
+          topic: "Evaluation",
+          title: "Direct Evaluation of Chain-of-Thought in Multi-hop Reasoning with Knowledge Graphs",
+          citation: "Nguyen et al., Findings of ACL 2024",
+          summary: "Evaluates chain-of-thought traces directly against KG evidence instead of judging only the final answer in multi-hop reasoning tasks.",
+          file: "nguyen2024-direct-evaluation-cot-multihop-kg.pdf"
+        },
+        {
+          alias: "Knowledge Solver",
+          year: 2023,
+          topic: "LLM + KG",
+          title: "Knowledge Solver: Teaching LLMs to Search for Domain Knowledge from Knowledge Graphs",
+          citation: "Feng et al., 2023",
+          summary: "Teaches LLMs to search domain knowledge graphs for missing facts so domain-specific questions are less likely to trigger hallucinated answers.",
+          file: "feng2023-knowledge-solver.pdf"
+        },
+        {
+          alias: "Fact Validation",
+          year: 2023,
+          topic: "Verification",
+          title: "Validating ChatGPT Facts through RDF Knowledge Graphs and Sentence Similarity",
+          citation: "Mountantonakis and Tzitzikas, 2023",
+          summary: "Cross-checks model claims against RDF knowledge graphs and text similarity signals to validate factual statements automatically.",
+          file: "mountantonakis2023-validating-chatgpt-facts-rdf-kg.pdf"
+        },
+        {
+          alias: "Hallucination Limit",
+          year: 2025,
+          topic: "Hallucination",
+          title: "Hallucination is Inevitable: An Innate Limitation of Large Language Models",
+          citation: "Xu et al., 2025",
+          summary: "Argues that hallucination is not just a training artifact but a fundamental limitation of the autoregressive language modeling setup.",
+          file: "xu2025-hallucination-is-inevitable.pdf"
+        },
+        {
+          alias: "KG x Multimodal Survey",
+          year: 2024,
+          topic: "Survey",
+          title: "Knowledge Graphs Meet Multi-Modal Learning: A Comprehensive Survey",
+          citation: "Chen et al., 2024",
+          summary: "Reviews how knowledge graphs interact with multimodal learning systems, including representation, retrieval, reasoning, and benchmark design.",
+          file: "chen2024-kg-multimodal-learning-survey.pdf"
+        },
+        {
+          alias: "KG Construction",
+          year: 2024,
+          topic: "KG Construction",
+          title: "From human experts to machines: An LLM supported approach to ontology and knowledge graph construction",
+          citation: "Kommineni et al., 2024",
+          summary: "Explores how LLM assistance can reduce manual effort in ontology engineering and knowledge graph construction workflows.",
+          file: "kommineni2024-llm-supported-ontology-kg-construction.pdf"
+        },
+        {
+          alias: "Multilingual SPARQL",
+          year: 2025,
+          topic: "KGQA / Text-to-SPARQL",
+          title: "Text-to-SPARQL Goes Beyond English: Multilingual Question Answering Over Knowledge Graphs through Human-Inspired Reasoning",
+          citation: "Perevalov and Both, 2025",
+          summary: "Extends text-to-SPARQL question answering beyond English and studies reasoning strategies for multilingual KG access.",
+          file: "perevalov2025-multilingual-text-to-sparql.pdf"
+        },
+        {
+          alias: "Inductive KGC",
+          year: 2025,
+          topic: "KG Completion",
+          title: "Context-aware Inductive Knowledge Graph Completion with Latent Type Constraints and Subgraph Reasoning",
+          citation: "Li et al., AAAI 2025",
+          summary: "Combines latent type constraints with subgraph reasoning to improve inductive knowledge graph completion on unseen entities.",
+          file: "li2025-context-aware-inductive-kg-completion.pdf"
+        },
+        {
+          alias: "Constrained Diffusion",
+          year: 2025,
+          topic: "Constrained Generation",
+          title: "Constrained Language Generation with Discrete Diffusion Models",
+          citation: "Cardei et al., 2025",
+          summary: "Adapts discrete diffusion language models to controlled generation where outputs must satisfy explicit constraints.",
+          file: "cardei2025-constrained-language-generation-discrete-diffusion.pdf"
+        },
+        {
+          alias: "Decoding on Graphs",
+          year: 2024,
+          topic: "LLM + KG",
+          title: "Decoding on Graphs: Faithful and Sound Reasoning on Knowledge Graphs through Generation of Well-Formed Chains",
+          citation: "Li et al., 2024",
+          summary: "Constrains generation to well-formed graph chains so reasoning remains both KG-grounded and structurally valid.",
+          file: "li2024-decoding-on-graphs.pdf"
+        },
+        {
+          alias: "Efficient Guidance",
+          year: 2023,
+          topic: "Constrained Generation",
+          title: "Efficient Guided Generation for Large Language Models",
+          citation: "Willard and Louf, 2023",
+          summary: "Reduces the cost of guided decoding so large language models can satisfy external constraints with much lower overhead.",
+          file: "willard2023-efficient-guided-generation-llms.pdf"
+        },
+        {
+          alias: "KG-o1",
+          year: 2025,
+          topic: "LLM + KG",
+          title: "KG-o1: Enhancing Multi-hop Question Answering in Large Language Models via Knowledge Graph Integration",
+          citation: "Wang et al., 2025",
+          summary: "Boosts multi-hop QA by injecting structured KG signals into LLM reasoning for more reliable evidence chaining.",
+          file: "wang2025-kg-o1.pdf"
+        },
+        {
+          alias: "Gen KGC",
+          year: 2023,
+          topic: "KG Completion",
+          title: "From Discrimination to Generation: Knowledge Graph Completion with Generative Transformer",
+          citation: "Xie et al., 2023",
+          summary: "Recasts knowledge graph completion as sequence generation with transformers instead of pure discriminative scoring.",
+          file: "xie2023-from-discrimination-to-generation.pdf"
+        },
+        {
+          alias: "GCR",
+          year: 2025,
+          topic: "LLM + KG",
+          title: "Graph-constrained Reasoning: Faithful Reasoning on Knowledge Graphs with Large Language Models",
+          citation: "Luo et al., 2025",
+          summary: "Uses a trie over KG reasoning paths to constrain decoding, reducing reasoning hallucinations while keeping paths faithful to the graph.",
+          file: "luo2025-graph-constrained-reasoning.pdf"
+        },
+        {
+          alias: "Fast Constraints",
+          year: 2024,
+          topic: "Constrained Generation",
+          title: "Guiding LLMs The Right Way: Fast, Non-Invasive Constrained Generation",
+          citation: "Beurer-Kellner et al., 2024",
+          summary: "Introduces a fast constrained decoding method that enforces formats and formal languages without invasive model changes.",
+          file: "beurer-kellner2024-guiding-llms-the-right-way.pdf"
+        },
+        {
+          alias: "Research Gap Note",
+          year: 2025,
+          topic: "Project Note",
+          title: "Identifying an Undergraduate Research Gap at the Intersection of Knowledge Graphs, LLMs, and Constraint-Aware Content Generation",
+          citation: "Project note, 2025",
+          summary: "Local note mapping the research space at the intersection of KGs, LLMs, and constraint-aware generation.",
+          file: "researchgap2025-kg-llm-constraint-aware-content-generation.pdf"
+        },
+        {
+          alias: "Constraint Scale",
+          year: 2025,
+          topic: "Constrained Generation",
+          title: "Large-Scale Constraint Generation: Can LLMs Parse Hundreds of Constraints?",
+          citation: "Boffa and You, 2025",
+          summary: "Studies how well LLMs handle generation tasks with very large numbers of explicit constraints in a single prompt.",
+          file: "boffa2025-large-scale-constraint-generation.pdf"
+        },
+        {
+          alias: "RouterKGQA",
+          year: 2026,
+          topic: "KGQA / Routing",
+          title: "RouterKGQA: Specialized-General Model Routing for Constraint-Aware Knowledge Graph Question Answering",
+          citation: "Yuan et al., 2026",
+          summary: "Routes queries between a specialized KGQA model and a stronger general model to balance cost, accuracy, and constraint handling.",
+          file: "RouterKGQA.pdf"
+        },
+        {
+          alias: "Self-Knowledge",
+          year: 2023,
+          topic: "Evaluation",
+          title: "Do Large Language Models Know What They Don’t Know?",
+          citation: "Yin et al., 2023",
+          summary: "Measures whether LLMs recognize unanswerable or unknowable questions rather than confidently fabricating answers.",
+          file: "do-llms-know-what-they-know.pdf"
+        },
+        {
+          alias: "ULTRABENCH",
+          year: 2025,
+          topic: "Benchmark",
+          title: "ULTRABENCH: Benchmarking LLMs under Extreme Fine-grained Text Generation",
+          citation: "Yun et al., 2025",
+          summary: "Benchmarks whether models can satisfy dense sets of simultaneous style, content, and structure constraints during generation.",
+          file: "yun2025-ultrabench.pdf"
+        },
+        {
+          alias: "Look-Ahead Decoding",
+          year: 2025,
+          topic: "Project Note",
+          title: "Enhancing Factuality in LLMs via Heuristic Look-Ahead Decoding on Domain-Specific Knowledge Graphs",
+          citation: "Project note, 2025",
+          summary: "Local concept note proposing heuristic look-ahead decoding grounded in a domain-specific KG to improve factuality.",
+          file: "enhancing-factuality-llms-domain-kg-lookahead-decoding.pdf"
+        },
+        {
+          alias: "Diagnostic Assistant",
+          year: 2025,
+          topic: "Project Note",
+          title: "Development of a Fact-Grounded Diagnostic Assistant for Mission-Critical Power Infrastructure using Constraint-Aware Knowledge Graphs",
+          citation: "Project note, 2025",
+          summary: "Local project note on a fact-grounded diagnostic assistant that constrains LLM output with knowledge graph structure.",
+          file: "fact-grounded-diagnostic-assistant-constraint-aware-kg.pdf"
+        },
+        {
+          alias: "GPT-4 Report",
+          year: 2024,
+          topic: "Foundation Model Report",
+          title: "GPT-4 Technical Report",
+          citation: "OpenAI, 2024",
+          summary: "Technical report describing GPT-4 capabilities, evaluations, limitations, and broad high-level system characteristics.",
+          file: "gpt-technical-report.pdf"
+        }
+      ];
+
+      const rows = document.getElementById("rows");
+      const studyGrid = document.getElementById("study-grid");
+      const empty = document.getElementById("empty");
+      const search = document.getElementById("search");
+      const sort = document.getElementById("sort");
+      const topic = document.getElementById("topic");
+      const visibleCount = document.getElementById("visible-count");
+      const paperCount = document.getElementById("paper-count");
+      const resultsPill = document.getElementById("results-pill");
+      const filterPill = document.getElementById("filter-pill");
+      const tableShell = document.getElementById("table-shell");
+      const studyShell = document.getElementById("study-shell");
+      const tableViewButton = document.getElementById("table-view-button");
+      const studyViewButton = document.getElementById("study-view-button");
+      let currentView = "table";
+
+      paperCount.textContent = String(papers.length);
+
+      const topics = [...new Set(papers.map((paper) => paper.topic))].sort();
+      for (const item of topics) {
+        const option = document.createElement("option");
+        option.value = item;
+        option.textContent = item;
+        topic.appendChild(option);
+      }
+
+      function compareBy(sortMode) {
+        if (sortMode === "year-asc") {
+          return (a, b) => a.year - b.year || a.title.localeCompare(b.title);
+        }
+        if (sortMode === "title-asc") {
+          return (a, b) => a.title.localeCompare(b.title);
+        }
+        if (sortMode === "alias-asc") {
+          return (a, b) => a.alias.localeCompare(b.alias);
+        }
+        return (a, b) => b.year - a.year || a.title.localeCompare(b.title);
+      }
+
+      function paperMatches(paper, term, topicFilter) {
+        const haystack = [
+          paper.alias,
+          paper.title,
+          paper.citation,
+          paper.topic,
+          String(paper.year),
+          paper.summary,
+          paper.file
+        ].join(" ").toLowerCase();
+        const byTopic = topicFilter === "all" || paper.topic === topicFilter;
+        return byTopic && haystack.includes(term);
+      }
+
+      function studyUse(paper) {
+        if (paper.topic.includes("Survey")) return "Read first to map the area, terminology, and adjacent subproblems.";
+        if (paper.topic.includes("Benchmark") || paper.topic.includes("Evaluation")) return "Use when selecting metrics, baselines, or discussing evaluation validity.";
+        if (paper.topic.includes("KGQA")) return "Use to compare retrieval, subgraph selection, and graph reasoning choices in question answering.";
+        if (paper.topic.includes("Constrained")) return "Use to compare decoding or generation strategies under explicit output constraints.";
+        if (paper.topic.includes("LLM + KG")) return "Use when framing how LLM reasoning is grounded in graph structure or KG evidence.";
+        if (paper.topic.includes("RAG")) return "Use when deciding when retrieval should occur and how evidence should shape generation.";
+        return "Use as a supporting reference when tightening related work or narrowing the design space.";
+      }
+
+      function setView(mode) {
+        currentView = mode;
+        const tableActive = mode === "table";
+        tableShell.style.display = tableActive ? "block" : "none";
+        studyShell.classList.toggle("is-active", !tableActive);
+        tableViewButton.classList.toggle("is-active", tableActive);
+        studyViewButton.classList.toggle("is-active", !tableActive);
+      }
+
+      function render() {
+        const term = search.value.trim().toLowerCase();
+        const topicFilter = topic.value;
+        const visible = papers
+          .filter((paper) => paperMatches(paper, term, topicFilter))
+          .sort(compareBy(sort.value));
+
+        rows.innerHTML = "";
+        studyGrid.innerHTML = "";
+        visibleCount.textContent = String(visible.length);
+        resultsPill.textContent = `${visible.length} visible`;
+        filterPill.textContent = topicFilter === "all" ? "All topics" : topicFilter;
+        empty.hidden = visible.length !== 0;
+
+        for (const paper of visible) {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><span class="short">${paper.alias}</span></td>
+            <td>${paper.year}</td>
+            <td>
+              <span class="tag">${paper.topic}</span>
+              <p class="title">${paper.title}</p>
+              <p class="citation">${paper.citation}</p>
+            </td>
+            <td><p class="summary">${paper.summary}</p></td>
+            <td><div class="file">${paper.file}</div></td>
+            <td><a class="open-link" href="${paper.file}" target="_blank" rel="noopener">Open PDF</a></td>
+          `;
+          rows.appendChild(tr);
+
+          const card = document.createElement("article");
+          card.className = "study-card";
+          card.innerHTML = `
+            <div class="study-top">
+              <div>
+                <span class="tag">${paper.topic}</span>
+                <p class="title">${paper.title}</p>
+                <p class="study-meta">${paper.citation} · ${paper.file}</p>
+              </div>
+              <span class="short">${paper.alias}</span>
+            </div>
+            <p class="summary">${paper.summary}</p>
+            <p class="study-use"><strong>Research use:</strong> ${studyUse(paper)}</p>
+            <div style="margin-top: 10px;">
+              <a class="open-link" href="${paper.file}" target="_blank" rel="noopener">Open PDF</a>
+            </div>
+          `;
+          studyGrid.appendChild(card);
+        }
+      }
+
+      search.addEventListener("input", render);
+      sort.addEventListener("change", render);
+      topic.addEventListener("change", render);
+      tableViewButton.addEventListener("click", () => setView("table"));
+      studyViewButton.addEventListener("click", () => setView("study"));
+      render();
+      setView(currentView);
+    </script>
+  </body>
+</html>
