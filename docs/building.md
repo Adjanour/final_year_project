@@ -14,13 +14,16 @@ Configuration lives in [`.latexmkrc`](../.latexmkrc) at the project root.
 
 ```bash
 # Incremental build — only re-runs what changed (fastest)
-latexmk -pdf thesis.tex
+latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder thesis.tex
 
 # Full clean rebuild — always starts from scratch
-latexmk -C && latexmk -pdf thesis.tex
+latexmk -C thesis.tex && latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder thesis.tex
+
+# Continuous watch mode (auto-rebuild on save)
+latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder -pvc thesis.tex
 
 # Wipe ALL generated files including thesis.pdf
-latexmk -C
+latexmk -C thesis.tex
 ```
 
 ### VS Code Tasks (shortcut)
@@ -28,38 +31,28 @@ latexmk -C
 Open the Command Palette (`Ctrl+Shift+P`) → **Tasks: Run Task**:
 
 | Task | Equivalent command |
-|---|---|
-| Build PDF (latexmk) | `latexmk -pdf thesis.tex` |
-| Clean + Build PDF (latexmk) | `latexmk -C && latexmk -pdf thesis.tex` |
+| --- | --- |
+| Build PDF (latexmk) | `latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder thesis.tex` |
+| Clean Aux (latexmk -c) | `latexmk -c thesis.tex` |
+| Clean + Build PDF (latexmk) | `latexmk -C thesis.tex && latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder thesis.tex` |
+| Watch PDF (latexmk -pvc) | `latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder -pvc thesis.tex` |
 
 ---
 
 ## Automatic Cleanup
 
-After every **successful** build, latexmk automatically deletes all
-intermediate files, leaving only the source and `thesis.pdf`.
+Use the clean tasks/commands when you want to remove generated files:
 
-This is configured in `.latexmkrc` via:
+- `latexmk -c thesis.tex` keeps `thesis.pdf` and removes aux files.
+- `latexmk -C thesis.tex` removes aux files and `thesis.pdf`.
 
-```perl
-$success_cmd = 'latexmk -c %S && rm -f %R.bbl';
-$clean_ext   = 'bbl synctex.gz %R-blx.bib run.xml';
-```
-
-Files removed: `.aux`, `.log`, `.toc`, `.lof`, `.lot`, `.out`, `.fls`,
-`.fdb_latexmk`, `.bbl`, `.blg`, `.synctex.gz`, `-blx.bib`, `.run.xml`
-
-`thesis.pdf` is **always kept**.
-
-> **Note:** The `.synctex.gz` file (used for PDF ↔ source sync in editors) is
-> also removed. If you need it, remove `synctex.gz` from `$clean_ext` in
-> `.latexmkrc`.
+This keeps SyncTeX files available during normal editing and watch mode.
 
 ---
 
 ## How Many Passes Run
 
-latexmk runs pdflatex and BibTeX as many times as needed (up to `$max_repeat = 5`):
+latexmk runs pdflatex and BibTeX as many times as needed (up to `$max_repeat = 10`):
 
 1. **pdflatex** — produces initial `.aux` with citation keys
 2. **bibtex** — reads `references.bib`, writes `.bbl`

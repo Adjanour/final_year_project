@@ -10,7 +10,7 @@ Faculty of Computing and Mathematical Sciences format.
 ## Prerequisites
 
 | Tool | Install |
-|---|---|
+| --- | --- |
 | TeX Live (full) | `sudo pacman -S texlive` · `sudo apt install texlive-full` |
 | latexmk | Included in TeX Live |
 | BibTeX | Included in TeX Live |
@@ -23,22 +23,26 @@ VS Code extension (**optional but recommended**): [LaTeX Workshop](https://marke
 
 ```bash
 # One-time or full rebuild (cleans first)
-latexmk -C && latexmk -pdf thesis.tex
+latexmk -C thesis.tex && latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder thesis.tex
 
 # Incremental rebuild (only re-runs what changed)
-latexmk -pdf thesis.tex
+latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder thesis.tex
+
+# Continuous watch mode (auto-rebuild on save)
+latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder -pvc thesis.tex
 ```
 
 Output: **`thesis.pdf`**
 
-Intermediate files (`.aux`, `.log`, `.bbl`, etc.) are **automatically deleted**
-after each successful build. See [docs/building.md](docs/building.md).
+Intermediate files (`.aux`, `.log`, `.bbl`, etc.) are kept during normal builds
+for faster incremental compiles and reliable SyncTeX. Use clean tasks/commands
+from [docs/building.md](docs/building.md) when needed.
 
 ---
 
 ## Project Structure
 
-```
+```text
 thesis.tex              Root driver — document class + \include list only
 preamble.tex            All packages, formatting, and thesis metadata
 references.bib          Bibliography database (BibTeX format)
@@ -79,9 +83,11 @@ docs/                   Extended documentation
 Open the Command Palette → **Tasks: Run Task**
 
 | Task | Action |
-|---|---|
+| --- | --- |
 | **Build PDF (latexmk)** | Incremental build → `thesis.pdf` |
+| **Clean Aux (latexmk -c)** | Remove aux files, keep `thesis.pdf` |
 | **Clean + Build PDF (latexmk)** | Full clean rebuild → `thesis.pdf` |
+| **Watch PDF (latexmk -pvc)** | Auto-rebuild continuously while editing |
 
 ---
 

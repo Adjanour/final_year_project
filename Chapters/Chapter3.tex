@@ -1,14 +1,16 @@
 % =============================================================================
-% CHAPTER 3 - METHODOLOGY
+% CHAPTER 3: METHODOLOGY
 % =============================================================================
 
-\chapter{METHODOLOGY} % Main chapter title
+\chapter{METHODOLOGY}
+\label{Chapter3}
 
-\label{Chapter3} % For referencing the chapter elsewhere, use \ref{Chapter1} 
+% -----------------------------------------------------------------------------
 \section{Introduction}
 \label{sec:ch3intro}
+% -----------------------------------------------------------------------------
 
-This chapter establishes the core methodology of the DCA-Trie framework, extending from formal problem specification and architectural algorithmic design through to the evaluation protocol. The chapter is organised as follows. Section~\ref{sec:ch3problem} formalises the research problem, deriving three strict constraints that any capable solution must satisfy. Section~\ref{sec:ch3rq} presents the primary research questions structuring the experimental logic. Section~\ref{sec:ch3sir} introduces the Semantic Irrelevance Ratio (SIR), a novel metric designed to continuously quantify constraint permissiveness independently of downstream generation accuracy. Section~\ref{sec:ch3scorer} specifies the semantic relevance scoring mechanism functioning as the foundational computational filter of DCA-Trie. Sections~\ref{sec:ch3v1} and~\ref{sec:ch3v2} detail the design, algorithmic implementation, complexity bounds, and faithfulness guarantees of DCA-Trie v1 and v2, respectively. Section~\ref{sec:ch3baseline} outlines the baseline systems against which the framework is evaluated, while Section~\ref{sec:ch3eval} lays out the empirical protocol, datasets, and hyperparameters. Section~\ref{sec:ch3ablation} specifies targeted ablation and sensitivity analyses to isolate the contribution of critical hyperparameters. Finally, Section~\ref{sec:ch3limitations} acknowledges specific scope boundaries and anticipated limitations that bound the empirical assertions in Chapter~4.
+This chapter presents the methodological foundation of the Dynamic Context‑Aware Trie (DCA‑Trie) framework and explains why this design is appropriate for addressing the central research problem. The chapter first defines the problem formally and states the research questions that guide the empirical study, then introduces the Semantic Irrelevance Ratio (SIR) as the key diagnostic for evaluating constraint permissiveness independently of final answer accuracy. It next describes the semantic scoring mechanism and details the two DCA‑Trie variants, including their algorithmic design, complexity characteristics, and faithfulness guarantees. The chapter then specifies the baseline systems, evaluation protocol, and ablation strategy used to test the framework under controlled conditions, before concluding with the scope boundaries and expected limitations that frame interpretation of the results in Chapter~4.
 
 % -----------------------------------------------------------------------------
 \section{Formal Problem Specification}
@@ -17,62 +19,110 @@ This chapter establishes the core methodology of the DCA-Trie framework, extendi
 
 \subsection{Restating the Core Limitation of Existing Frameworks}
 
-As elucidated in Chapter~2, existing knowledge graph-constrained generation frameworks, prominently GCR \citep{luo2024gcr} and DoG \citep{li2024dog}, instantiate their constraint oracles as deterministic functions evaluated over the knowledge graph $\mathcal{G}$ and the identified question entities $\mathcal{E}_q$, expressed formally as $f(\mathcal{G}, \mathcal{E}_q)$. Whether computed entirely a priori or expanded topologically during decoding, the mathematical consequence is that the permitted valid token set $\mathcal{W}_{\text{val}}(t)$ at any arbitrary decoding step $t$ resolves to:
+As discussed in Chapter~2, existing knowledge graph-constrained generation frameworks, especially GCR \citep{luo2024gcr} and DoG \citep{li2024dog}, rely on deterministic constraint oracles defined over the graph $\mathcal{G}$ and the identified question entities $\mathcal{E}_q$, i.e., $f(\mathcal{G}, \mathcal{E}_q)$. Whether the oracle is computed fully before decoding or expanded during decoding, the valid token set at step $t$ is still determined by:
 \begin{equation}
   \mathcal{W}_{\text{val}}^{\text{GCR}}(t) = f(\mathcal{G},\, \mathcal{E}_q)
   \quad \forall\, t
   \label{eq:gcr_oracle}
 \end{equation}
-Crucially, this specification is entirely independent of two critical contextual vectors: the semantic intent embedded within the natural language question $q$, and the dynamically evolving reasoning trajectory captured by the partial generation sequence $y_{<t}$. Consequently, all structurally accessible knowledge graph paths manifest symmetrically within the constraint hypothesis space, irrespective of their logical utility or factual relevance to the target query. For complex, multi-hop queries executing over dense subgraphs in Freebase, the combinatorial upper bound on this admitted valid set evaluates strictly to $|\mathcal{E}_q| \times d^3 \approx 8{,}000$ distinct traversable paths (referenced from Equation~\ref{eq:pathgrowth} in Chapter~2). Of this mathematically profound subset, strictly one path maps to the verifiable gold answer.
+This formulation does not use two essential sources of context: the semantic intent of the question $q$ and the evolving reasoning state in the partial sequence $y_{<t}$. As a result, all structurally reachable paths are treated as equally plausible, regardless of whether they are useful for answering the query. For dense multi-hop Freebase subgraphs, the admissible search space can grow to $|\mathcal{E}_q| \times d^3 \approx 8{,}000$ paths (Equation~\ref{eq:pathgrowth} in Chapter~2), although typically only one path corresponds to the gold answer.
 
-Such architectural paradigms erroneously conflate two orthogonal computational requirements. \textit{Structural validity} demands that any token permitted by the constraint oracle corresponds deterministically to a topological edge within the underlying knowledge schema---a baseline criteria satisfied universally by modern approaches. Conversely, \textit{Contextual relevance} necessitates that the permitted parameter space accurately reflects the task-specific semantic vector dictating generation step $t$---a stringent requirement universally ignored by contemporary mechanisms. This chasm between rigid topological correctness and fluid semantic applicability encapsulates the formal definition of the \textit{permissiveness problem}.
+This design mixes two different requirements. \textit{Structural validity} requires that each permitted token corresponds to a valid graph transition; current methods generally satisfy this. \textit{Contextual relevance} requires that permitted tokens reflect what is semantically relevant at step $t$ for the specific question; this is largely missing in existing systems. The gap between these two requirements is the core \textit{permissiveness problem}.
 
 \subsection{The Upgraded Oracle Specification}
 
-The DCA-Trie architecture resolves the permissiveness problem by formalising an upgraded mathematical constraint oracle that unifies structural accessibility with semantic integration. This upgraded function dynamically absorbs both the input semantic tensor and the unfolding generation prefix:
+DCA‑Trie addresses this problem by defining an upgraded constraint oracle that combines structural validity with semantic context. The oracle conditions on both the input question and the evolving generation prefix:
 \begin{equation}
   \mathcal{W}_{\text{val}}^{\text{DCA}}(t) = f(\mathcal{G},\, \mathcal{E}_q,\,
   q,\, y_{<t})
   \label{eq:dca_oracle}
 \end{equation}
-where $q$ encapsulates the natural language query structure and $y_{<t} = (y_1, \ldots, y_{t-1})$ signifies the precise token history resolved at step $t$. To assert methodological completeness, this upgraded constraint vector must simultaneously satisfy three absolute conditions, which precisely operationalise the central objectives detailed in Chapter~1:
+where $q$ is the natural language query and $y_{<t} = (y_1, \ldots, y_{t-1})$ is the generated prefix at step $t$. To be methodologically sound, the upgraded oracle must satisfy three conditions aligned with the project objectives in Chapter~1:
 
 \begin{enumerate}
-  \item \textbf{Structural Faithfulness (Condition~F):} Every candidate token $v \in \mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ at every generation step $t$ must map conclusively to a mathematically valid sequence prefix of an existing path $p \in \mathcal{G}$. This axiom ensures that DCA-Trie rigorously observes a 100\% structural faithfulness baseline comparable to GCR and DoG, definitively preempting the introduction of any ungrounded lexical hallucinations into the constrained valid set.
+  \item \textbf{Structural Faithfulness (Condition~F):} Every candidate token $v \in \mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ must correspond to a valid prefix of a path $p \in \mathcal{G}$ at every step $t$. This preserves the 100\% structural faithfulness guarantee achieved by GCR and DoG and prevents ungrounded tokens from entering the valid set.
 
-  \item \textbf{Semantic Relevance Reduction (Condition~R):} The computed Semantic Irrelevance Ratio (SIR) of $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ must demonstrate a strict mathematical reduction compared to the equivalent metric over $\mathcal{W}_{\text{val}}^{\text{GCR}}(t)$ when averaged globally across statistical evaluation corpora. Formally, denoting SIR as the primary diagnostic specified in Section~\ref{sec:ch3sir}:
+  \item \textbf{Semantic Relevance Reduction (Condition~R):} The Semantic Irrelevance Ratio (SIR) under DCA‑Trie must be lower than the corresponding SIR under GCR when averaged over the evaluation corpus. Using SIR as defined in Section~\ref{sec:ch3sir}:
         \begin{equation}
           \overline{\text{SIR}}\!\left(\mathcal{W}^{\text{DCA}}\right) <
           \overline{\text{SIR}}\!\left(\mathcal{W}^{\text{GCR}}\right)
           \label{eq:sir_condition}
         \end{equation}
 
-  \item \textbf{Recall Preservation (Condition~P):} Evaluated within the context of semantic pruning, the verifiable gold reference path must mathematically evade spurious elimination by the scoring filter. Operationally, the empirical false negative rate (FNR) on the constrained WebQSP validation locus must evaluate strictly below the 5\% threshold:
+  \item \textbf{Recall Preservation (Condition~P):} Semantic pruning must not remove gold paths excessively. Operationally, the false negative rate (FNR) on the WebQSP validation split must remain below 5\%:
         \begin{equation}
           \text{FNR} = \frac{|\{q \in \mathcal{Q}_{\text{val}} :
           p^*_q \notin \mathcal{W}_{\text{val}}^{\text{DCA}}(t)\}|}{|\mathcal{Q}_{\text{val}}|}
           < 0.05
           \label{eq:fnr}
         \end{equation}
-        where $p^*_q$ resolves to the gold truth mechanism for question $q$ and $\mathcal{Q}_{\text{val}}$ encapsulates the dedicated 100-question held-out validation segment.
+        where $p^*_q$ is the gold path for question $q$ and $\mathcal{Q}_{\text{val}}$ is the held-out 100-question validation set.
 \end{enumerate}
 
-These three fundamental stipulations transcend abstract diagnostic desiderata; they exist as deterministic targets quantified exhaustively in the Chapter~4 empirical framework. Condition~F is structurally verified by the raw faithfulness output metric. Condition~R translates directly to empirical observation via the proposed Semantic Irrelevance Ratio (SIR). Condition~P evaluates quantitatively against precision thresholds. Operating collectively, they form the core mathematical scaffolding constraining the DCA-Trie implementation.
+These conditions are not only conceptual; they are evaluated directly in Chapter~4. Condition~F is checked using structural faithfulness, Condition~R through SIR, and Condition~P through FNR-based recall checks. Together, they define the methodological requirements that guide the DCA‑Trie design.
 
 % -----------------------------------------------------------------------------
 \section{Research Questions}
 \label{sec:ch3rq}
 % -----------------------------------------------------------------------------
 
-The empirical validation strategy executed in Chapter~4 is rigidly structured around four explicit research questions. These queries strictly operationalise the foundational project objectives delineated in Chapter~1 and establish a formal methodology for assessing the viability of the DCA-Trie architecture.
+The empirical study in Chapter~4 is organised around four research questions. These questions translate the project objectives from Chapter~1 into testable methodological targets for evaluating DCA‑Trie.
 
-\textbf{RQ1 (Permissiveness Baseline Characterisation):} To what extent does the constraint permissiveness problem degrade structural efficiency within GCR's static KG-Trie across the WebQSP and CWQ corpora, and how does this degradation scale mathematically as a function of question hop-depth? This inquiry rigorously operationalises Objective~i, strictly establishing the quantitative failure baseline against which DCA-Trie's strategic architectural interventions will be systematically evaluated.
+\textbf{RQ1 (Permissiveness Baseline Characterisation):} How strongly does the permissiveness problem reduce efficiency in GCR's static KG‑Trie on WebQSP and CWQ, and how does this effect change with hop depth? This establishes the quantitative baseline that DCA‑Trie is designed to improve.
 
-\textbf{RQ2 (Target Truth Accuracy):} Do the dynamic architectural permutations, namely DCA-Trie v1 and v2, fundamentally match or strictly surpass the generative baseline accuracy (measured via primary Hits@1 and F1) established by GCR across the specified multi-hop QA benchmarks? This parameter isolates the foundational query: whether aggressive semantic pruning intrinsically elevates terminal answer fidelity by enforcing dense reasoning vectors, or inadvertently deteriorates global performance by masking legitimate graph routes.
+\textbf{RQ2 (Target Truth Accuracy):} Do DCA‑Trie v1 and v2 match or outperform GCR in answer accuracy (Hits@1 and F1) on multi-hop QA benchmarks? This tests whether semantic pruning improves final answer quality or harms it by removing useful graph routes.
 
-\textbf{RQ3 (Strict Structural Faithfulness Conservation):} Does the integration of aggressive mathematical relevance gating explicitly guarantee the 100\% baseline structural faithfulness boundary inherent to the underlying models? This question definitively verifies Condition~F, mathematically asserting that the integrated similarity semantic scorer strictly intercepts no procedurally invalid or structurally ungrounded hallucinated tokens into the terminal output space.
+\textbf{RQ3 (Strict Structural Faithfulness Conservation):} Does semantic relevance gating preserve the 100\% structural faithfulness guarantee of the baseline constrained decoders? This directly evaluates Condition~F by checking that no structurally invalid tokens are admitted.
 
-\textbf{RQ4 (Semantic Irrelevance Mitigation Efficiency):} What strict geometric reduction in the Semantic Irrelevance Ratio (SIR) do the DCA-Trie architectures introduce relative to the unconstrained GCR baseline, and does this mathematical mitigation coefficient proportionally escalate with topological traversal hop-depth relative to Equation~\eqref{eq:sir_condition}? This query conclusively determines progress concerning Objective~ii, presenting terminal empirical veracity validating the systematic resolution of the underlying constraint permissiveness paradox.
+\textbf{RQ4 (Semantic Irrelevance Mitigation Efficiency):} How much do DCA‑Trie variants reduce SIR relative to GCR, and does the reduction become larger at greater hop depth as suggested by Equation~\eqref{eq:sir_condition}? This question evaluates progress on the semantic efficiency objective.
+
+% -----------------------------------------------------------------------------
+\section{System Architecture Overview}
+\label{sec:ch3arch}
+% -----------------------------------------------------------------------------
+
+The DCA‑Trie system is designed as an extension of the Graph‑Constrained Reasoning (GCR) framework \citep{luo2024gcr}, inheriting its four-layer pipeline architecture and modifying the constraint oracle layer to incorporate semantic relevance conditioning. The four layers are:
+
+\begin{enumerate}
+  \item \textbf{Entity linking layer:} Identifies the set of question entities $\mathcal{E}_q$ from the natural language input question $q$ using a named entity recognition tool. These entities serve as the starting points for all KG path search operations. This layer is retained from GCR without modification.
+
+  \item \textbf{Constraint oracle layer:} The primary site of DCA‑Trie's contribution. In baseline GCR, this layer constructs a KG‑Trie by breadth‑first search over the KG from $\mathcal{E}_q$ to a maximum depth of $L$ hops, encoding all reachable paths as a prefix tree before generation begins. DCA‑Trie replaces this with a semantically conditioned oracle. In v1, semantic filtering is applied at trie construction time, pruning paths whose cosine similarity to the input question falls below a threshold $\tau$. In v2, the oracle is additionally updated step‑wise during generation, re‑scoring the KG neighbourhood of each committed entity against the current reasoning context $(q, y_{<t})$ and admitting only relevant neighbours.
+
+  \item \textbf{Constrained decoding layer:} Applies the binary logit mask derived from the constraint oracle at every token generation step during beam search. This layer enforces structural faithfulness: only tokens that correspond to valid KG path prefixes in the oracle trie can be generated. This layer is structurally identical in GCR and DCA‑Trie; the only change is the oracle it queries.
+
+  \item \textbf{Inductive reasoning layer:} Uses GPT‑4o‑mini to synthesise the $K$ reasoning paths produced by constrained beam search into a single final answer. This layer is retained from GCR without modification.
+\end{enumerate}
+
+Figure~\ref{fig:architecture} illustrates the full system architecture with the DCA‑Trie constraint oracle layer highlighted.
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+    node distance=0.6cm and 1.2cm,
+    box/.style={draw, rectangle, rounded corners=4pt, minimum height=1.0cm,
+        minimum width=3.5cm, align=center, thick, font=\small},
+    contrib/.style={draw, rectangle, rounded corners=4pt, minimum height=1.0cm,
+        minimum width=3.5cm, align=center, thick, font=\small,
+        fill=teal!12, draw=teal!60!black},
+    arrow/.style={-{Stealth[scale=1.1]}, thick},
+    label/.style={font=\footnotesize\itshape, text=gray}
+    ]
+    \node[box]    (el)   {Entity Linking};
+    \node[contrib, below=of el] (oracle) {Constraint Oracle\\(DCA‑Trie)};
+    \node[box,    below=of oracle] (cd) {Constrained Decoding\\(Beam Search, $K$ beams)};
+    \node[box,    below=of cd]    (ir) {Inductive Reasoning\\(GPT‑4o‑mini)};
+    \node[box,    below=of ir]    (ans){Final Answer};
+
+    \draw[arrow] (el)     -- node[label, right] {$\mathcal{E}_q$} (oracle);
+    \draw[arrow] (oracle) -- node[label, right] {Mask $\mathbf{m}_t$} (cd);
+    \draw[arrow] (cd)     -- node[label, right] {$K$ reasoning paths} (ir);
+    \draw[arrow] (ir)     -- (ans);
+
+    \node[label, right=0.3cm of oracle] {\textit{← Primary contribution}};
+  \end{tikzpicture}
+  \caption{DCA‑Trie system architecture. The constraint oracle layer (teal) is the primary contribution; all other layers are inherited from GCR~\citep{luo2024gcr}.}
+  \label{fig:architecture}
+\end{figure}
 
 % -----------------------------------------------------------------------------
 \section{The Semantic Irrelevance Ratio: Definition and Measurement}
@@ -81,37 +131,37 @@ The empirical validation strategy executed in Chapter~4 is rigidly structured ar
 
 \subsection{Motivation}
 
-Standard evaluation metrics deployed for knowledge graph-constrained decoding architectures, specifically Hits@1, F1, and structural faithfulness rate, uniformly assess downstream generation outcomes: whether the terminal entity matches the gold answer, and whether the lexical output is strictly graph-valid. However, none mathematically verify the inherent precision of the constraint mechanism itself. A decoding framework could hypothetically achieve flawless target metrics while actively propagating the permissiveness problem: the underlying large language model might arrive at the correct terminal node by successfully traversing and discriminating among thousands of structurally valid but contextually irrelevant paths relying strictly on parametric memorisation, rather than because the constraint mechanism actually narrowed the conceptual search horizon. To resolve this critical diagnostic gap, this research introduces the Semantic Irrelevance Ratio (SIR) as a deterministic mathematical quantification of constraint efficiency independent of generation fidelity.
+Standard metrics for KG-constrained decoding, including Hits@1, F1, and structural faithfulness, evaluate final outputs: whether the predicted answer is correct and whether generated paths remain graph-valid. However, these metrics do not directly measure how selective or efficient the constraint mechanism is. A model can still reach the right answer while searching through a large set of structurally valid but semantically irrelevant paths. To measure this directly, this work introduces the Semantic Irrelevance Ratio (SIR), a diagnostic that quantifies constraint permissiveness independently of final answer accuracy.
 
 \subsection{Formal Definition}
 
-Let $\mathcal{P}(q, t)$ formally denote the complete set of knowledge graph paths structurally admitted by the active constraint oracle during decoding execution step $t$ for a designated query $q$. A specific topological path $p \in \mathcal{P}(q, t)$ is definitively designated as \textit{semantically irrelevant} if its vectorised cosine similarity relative to the concatenated question-context embedding evaluates below a rigidly established baseline threshold $\tau_{\text{ref}}$:
+Let $\mathcal{P}(q, t)$ denote the set of paths admitted by the active constraint oracle at decoding step $t$ for question $q$. A path $p \in \mathcal{P}(q, t)$ is treated as \textit{semantically irrelevant} if its cosine similarity to the question-context representation falls below a fixed reference threshold $\tau_{\text{ref}}$:
 \begin{equation}
   \text{irrelevant}(p, q, y_{<t}) = \mathbf{1}\!\left[
     \cos\!\bigl(E(p),\; E(\text{concat}(q, y_{<t}))\bigr) < \tau_{\text{ref}}
     \right]
   \label{eq:irrelevant}
 \end{equation}
-where $E(\cdot)$ represents the selected high-density \texttt{all-MiniLM-L6-v2} encoder embedding projection, and the boundary condition $\tau_{\text{ref}} = 0.3$ serves as a non-tunable static reference threshold formulated to securely delineate off-topic structural traversals without conflating underlying relevance verification with DCA-Trie's structurally dynamic admission boundary parameter $\tau$.
+where $E(\cdot)$ is the \texttt{all-MiniLM-L6-v2} sentence encoder, and $\tau_{\text{ref}} = 0.3$ is a fixed reference threshold. This reference threshold is intentionally non-tunable and separate from DCA‑Trie's admission threshold $\tau$.
 
-Consequently, the Semantic Irrelevance Ratio for a singular evaluated question $q$ isolating step $t$ is strictly defined as:
+The step-level SIR for question $q$ at decoding step $t$ is then defined as:
 \begin{equation}
   \text{SIR}(q, t) = \frac{\sum_{p \in \mathcal{P}(q,t)}
     \text{irrelevant}(p, q, y_{<t})}{|\mathcal{P}(q, t)|}
   \label{eq:sir_step}
 \end{equation}
 
-The aggregate diagnostic SIR quantifying an entire generational framework across an independent evaluation corpus $\mathcal{Q}$ is derived by averaging uniformly over the sum of all queries intersecting all valid generation intervals up to the deterministic maximum traversal depth $L$:
+Corpus-level SIR is computed by averaging over all questions and all valid decoding steps up to depth $L$:
 \begin{equation}
   \overline{\text{SIR}} = \frac{1}{|\mathcal{Q}|} \sum_{q \in \mathcal{Q}}
   \frac{1}{L_q} \sum_{t=1}^{L_q} \text{SIR}(q, t)
   \label{eq:sir_aggregate}
 \end{equation}
-where $L_q$ strictly dictates the cumulative hop dimension of the generated lexical reasoning chain regarding query $q$.
+where $L_q$ is the hop length of the generated reasoning chain for question $q$.
 
 \subsection{Properties and Interpretation}
 
-The aggregate ratio $\overline{\text{SIR}}$ mathematically inhabits the interval $[0, 1]$. A terminal limit converging on $\overline{\text{SIR}} = 1$ confirms structural catastrophe constraint-wise: every route permitted by the structural oracle inherently lacks textual relevance regarding the primary question, effectively forcing the parametric LLM layer to shoulder the absolute burden of logical traversal. By definitive contrast, an evaluated baseline of $\overline{\text{SIR}} = 0$ perfectly asserts that every generated constraint subset represents intense, contextual target relevance---affirming perfect spatial restriction. Extant frameworks including GCR and DoG systematically execute near the maximum boundary, mathematically confirming massive structural SIR overhead specifically inflating at three and four-hop traversal bounds, where exhaustive path enumeration explodes. The implementation of the DCA-Trie architecture mathematically executes an intentional, quantifiable suppression of the overall SIR calculation, aggressively bypassing semantically tangential routes leveraging the active threshold mechanisms mathematically specified via Equation~\eqref{eq:dca_oracle}. Following standardized practices, empirical SIR outputs will inherently evaluate stratified across varied discrete hop depths to determine if active semantic exclusion consistently cascades scaling parallel to mounting query complexity.
+By definition, $\overline{\text{SIR}} \in [0,1]$. A value near 1 indicates that most admitted paths are irrelevant, so the model still faces a large and noisy search space. A value near 0 indicates that the constraint set is tightly aligned with question semantics. Prior constrained frameworks such as GCR and DoG tend to show high SIR, especially at larger hop depths where path counts increase rapidly. DCA‑Trie is designed to reduce SIR by filtering semantically weak paths while retaining structurally valid ones. In reporting, SIR is analysed by hop depth to evaluate how this effect scales with reasoning complexity.
 
 % -----------------------------------------------------------------------------
 \section{Semantic Relevance Scoring Mechanism}
@@ -120,22 +170,22 @@ The aggregate ratio $\overline{\text{SIR}}$ mathematically inhabits the interval
 
 \subsection{Scorer Architecture}
 
-The semantic relevance scoring module natively operationalises the foundational architectural paradigm shift from the static function $f(\mathcal{G}, \mathcal{E}_q)$ to the dynamic formulation $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$. The mathematical operation dictates receiving an individual discrete structural candidate knowledge graph path $p$, the raw natural language query sequence $q$, and the continuous partial derivation $y_{<t}$, synthesising these components into an executable continuous scalar relevance output within the $[0, 1]$ interval space.
+The semantic relevance scorer implements the transition from a static oracle $f(\mathcal{G}, \mathcal{E}_q)$ to a context-aware oracle $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$. It takes a candidate KG path $p$, the question $q$, and the partial generation $y_{<t}$, and returns a relevance score in $[0,1]$.
 
-An individual topological search path $p = (e_0, r_1, e_1, \ldots, r_L, e_L)$ is sequentially serialised into an interpretable natural language sequence via string concatenation bounded by space delimiters isolating consecutive structural nodes and edges:
+A path $p = (e_0, r_1, e_1, \ldots, r_L, e_L)$ is first serialised into a text sequence:
 \begin{equation}
   \text{str}(p) = e_0 \;\|\; r_1 \;\|\; e_1 \;\|\; \cdots \;\|\; r_L \;\|\; e_L
   \label{eq:pathstr}
 \end{equation}
-where extracted entity descriptors mathematically map to resolved Freebase human-readable lexical names (decoded computationally from internal MIDs wherever semantically viable), and intermediate formal relation vectors denote Freebase relation schema schemas where internal programmatic underscores undergo regular expression space replacement. Converging symmetrically, the dynamic querying context synthesises string integration parsing both spatial origin and topological position separating by an explicit lexical breakpoint string:
+where entity IDs are mapped to readable Freebase names when available, and relation strings are normalised (e.g., underscore replacement). The query-side context is serialised as:
 \begin{equation}
   \text{query}(q, y_{<t}) = q \;\|\; \texttt{[SEP]} \;\|\;
   \text{str}(y_{<t})
   \label{eq:querystr}
 \end{equation}
-where $\text{str}(y_{<t})$ effectively materialises the locally detokenised historical chain progression.
+where $\text{str}(y_{<t})$ is the detokenised generation prefix.
 
-Sequentially, both string parameters $\text{str}(p)$ and $\text{query}(q, y_{<t})$ map deterministically through the robustly dense \texttt{all-MiniLM-L6-v2} transformer encoder block \citep{reimers2019sentence} translating natural linguistics into unified 384-dimensional spatially dense representation coordinates. The terminal absolute relevance scalar quantifies their continuous spatial cosine geometry:
+Both $\text{str}(p)$ and $\text{query}(q, y_{<t})$ are encoded using \texttt{all-MiniLM-L6-v2} \citep{reimers2019sentence} into 384-dimensional vectors. Relevance is computed as cosine similarity:
 \begin{equation}
   \text{score}(p,\, q,\, y_{<t}) = \cos\!\bigl(
   E\!\left(\text{str}(p)\right),\;\;
@@ -144,7 +194,7 @@ Sequentially, both string parameters $\text{str}(p)$ and $\text{query}(q, y_{<t}
   \label{eq:scorer}
 \end{equation}
 
-Thus, an iteratively assessed semantic candidate path $p$ earns mathematical admission to the local continuous valid lexicon $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ explicitly if and only if its geometric divergence confirms $\text{score}(p, q, y_{<t}) \geq \tau$, where $\tau$ constitutes the active parameterised admission magnitude threshold. This decisive binary activation directly embeds the continuous multi-dimensional similarity computation deeply within the robust logit-masking schema originally modeled natively as Equation~\eqref{eq:logitmask} in Chapter~2. The total topological execution algorithm visually structures itself accordingly in Figure~\ref{fig:scorer}.
+A candidate path is admitted into $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ if and only if $\text{score}(p, q, y_{<t}) \geq \tau$, where $\tau$ is the admission threshold. This binary decision integrates the semantic score into the same logit-masking framework defined in Equation~\eqref{eq:logitmask} in Chapter~2. The full scoring workflow is shown in Figure~\ref{fig:scorer}.
 
 \begin{figure}[htbp]
   \centering
@@ -184,28 +234,27 @@ Thus, an iteratively assessed semantic candidate path $p$ earns mathematical adm
     \draw[arrow] (penc) -- node[right, font=\footnotesize] {Vector $\mathbf{v}$} (cos);
 
     \draw[arrow] (cos) -- node[right, font=\footnotesize] {Score $s$} (thresh);
-
   \end{tikzpicture}
-  \caption{The semantic relevance scoring mechanism. Candidate knowledge graph paths and the dynamically updating query-context prefix sequence are independently routed down continuous pathways to an aggregated dense mapping defined by a tuned state-of-the-art encoder. Deterministic binary admission implements an aggressive exclusion gate parameterized upon a designated $\tau$ limit bounding DCA-Trie's contextual relevance scope.}
+  \caption{The semantic relevance scoring mechanism. Candidate knowledge graph paths and the dynamically updating query‑context prefix sequence are independently routed to dense representations by a tuned encoder. Deterministic binary admission implements an aggressive exclusion gate parameterised by $\tau$, bounding DCA‑Trie's contextual relevance scope.}
   \label{fig:scorer}
 \end{figure}
 
 \subsection{Threshold Selection}
 
-The absolute admission threshold magnitude $\tau$ is systematically isolated via a precise mathematical evaluation over a structurally detached validation partition housing strictly 100 uniquely formulated, multi-hop question vectors isolated carefully from the primary WebQSP general evaluation run. The cardinal selection methodology algorithm prioritizes absolute empirical preservation of Condition~P (false negative containment) iteratively while executing maximum mathematical decay targeting overall base trie proportions sequentially relative to GCR baseline distributions. Analytically, model $\tau$ tests across continuous limits bounded safely within $[0.1, 0.6]$, increasing deterministically by $0.05$ per epoch lockstep. The optimized scalar defines definitively as the highest continuous bounding $\tau$ empirically conserving $\text{FNR} < 0.05$. This isolation routine necessarily fires independently separated: initially standardizing explicitly for DCA-Trie v1 (where global path threshold limits execute synchronously upfront during initialization block) and recursively calibrating optimally regarding DCA-Trie v2 (wherein progressive filter pruning necessitates active node recalibration). Differential model environments naturally force asynchronous threshold calibrations since v2 actively computes expanding historical depth sequentially parsing progressively precise vectors supporting naturally stricter limits scaling without data attrition.
+The admission threshold $\tau$ is tuned on a separate 100-question WebQSP validation split. Selection prioritises Condition~P (low false negatives) while still maximising trie reduction relative to GCR. We sweep $\tau \in [0.1, 0.6]$ with step size 0.05 and select the highest value that satisfies $\text{FNR} < 0.05$. Thresholds are tuned independently for v1 and v2, since v2 uses step-wise context updates and therefore follows a different pruning dynamic.
 
 \subsection{Encoder Caching}
 
-To mathematically negate heavy repetitive recursive evaluation computation overlapping deeply during exponential parallel beam searches, every topological node vector embedding structurally encapsulated by $E(\text{str}(p))$ specifically mapped to known static tree arrays is explicitly parsed and stored a priori preceding active step execution. This pre-computational bypass guarantees efficiency intrinsically feasible specific to DCA-Trie v1 where path nodes lock during strict initialization. Alternatively within DCA-Trie v2, sequential array vector generations parsing actively traversing unspooled branches execute rigorously lazily (strictly mapped during node instantiation) and strictly encode caching limits ensuring immediate parallel overlap checks efficiently mitigate unnecessary recursive encoder calls inherently. Conversely, the dynamic target query scalar $E(\text{query}(q, y_{<t}))$ is inevitably regenerated uniquely immediately pursuing every partial beam update triggering strict modification instances (e.g., following discrete committed contextual entity iterations systematically appending the logical trail block).
+To reduce repeated computation during beam search, path embeddings $E(\text{str}(p))$ are cached. In v1, caching is done up front because the trie is fixed after construction. In v2, embeddings are cached lazily as new branches are expanded. In both cases, caching avoids redundant encoder calls for previously seen paths. By contrast, the query-context embedding $E(\text{query}(q, y_{<t}))$ must be recomputed whenever the generation prefix changes.
 
 % -----------------------------------------------------------------------------
-\section{DCA-Trie v1: Static Semantic Filtering}
+\section{DCA‑Trie v1: Static Semantic Filtering}
 \label{sec:ch3v1}
 % -----------------------------------------------------------------------------
 
 \subsection{Design Rationale}
 
-DCA-Trie v1 actively resolves Gap~1 (the severe permissiveness problem) alongside Gap~2 (static topological inefficiency) by strictly shifting the vector semantic filtration layer into the upfront offline trie construction phase, preceding autoregressive beam generation. The defining structural insight acknowledges that leveraging only the embedded mathematical structure of the natural query $q$---entirely independent of continuous forward contextual permutations captured within $y_{<t}$---can structurally truncate the admitted path hypothesis space significantly, strictly because the vast majority of formally traversable paths possess zero semantic vector correlation to any specific query context. By strictly anchoring algorithmic extraction onto $q$ globally, the static oracle upgrades from the strictly topological $f(\mathcal{G}, \mathcal{E}_q)$ into a bounded semantic envelope $f(\mathcal{G}, \mathcal{E}_q, q)$. Crucially, this execution natively preserves the computationally optimal pre-compiled nested trie lookup array format, sustaining GCR's peak $O(d)$ generation-time asymptotic lookup efficiency regarding local trie child expansion. This complete singular offline compilation workflow is accurately encapsulated structurally within Figure~\ref{fig:v1}.
+DCA‑Trie v1 actively resolves Gap~1 (the severe permissiveness problem) alongside Gap~2 (static topological inefficiency) by shifting the semantic filtration layer into the upfront offline trie construction phase, preceding autoregressive beam generation. The defining structural insight acknowledges that leveraging only the embedded mathematical structure of the natural query $q$—entirely independent of continuous forward contextual permutations captured within $y_{<t}$—can structurally truncate the admitted path hypothesis space significantly, strictly because the vast majority of formally traversable paths possess zero semantic vector correlation to any specific query context. By strictly anchoring algorithmic extraction onto $q$ globally, the static oracle upgrades from the strictly topological $f(\mathcal{G}, \mathcal{E}_q)$ into a bounded semantic envelope $f(\mathcal{G}, \mathcal{E}_q, q)$. Crucially, this execution natively preserves the computationally optimal pre‑compiled nested trie lookup array format, sustaining GCR's peak $O(d)$ generation‑time asymptotic lookup efficiency regarding local trie child expansion. This complete singular offline compilation workflow is accurately encapsulated structurally within Figure~\ref{fig:v1}.
 
 \begin{figure}[htbp]
   \centering
@@ -226,7 +275,7 @@ DCA-Trie v1 actively resolves Gap~1 (the severe permissiveness problem) alongsid
 
     \node[box, fill=teal!10, below=1.5cm of $(qenc)!0.5!(paths)$, text width=6cm] (filter) {\textbf{Semantic Filter Loop}\\For each $p \in \mathcal{P}$:\\1. Vector $\mathbf{v}_p \leftarrow E(\text{str}(p))$\\2. $s_p \leftarrow \cos(\mathbf{u}, \mathbf{v}_p)$\\3. Keep if $s_p \geq \tau$};
 
-    \node[box, below=1.5cm of filter] (trie) {Construct Filtered\\KG-Trie $\mathcal{T}^{\text{v1}}$};
+    \node[box, below=1.5cm of filter] (trie) {Construct Filtered\\KG‑Trie $\mathcal{T}^{\text{v1}}$};
 
     \draw[arrow] (query) -- (qenc);
     \draw[arrow] (kg) -- (bfs);
@@ -236,22 +285,21 @@ DCA-Trie v1 actively resolves Gap~1 (the severe permissiveness problem) alongsid
     \draw[arrow] (paths) |- (filter);
 
     \draw[arrow] (filter) -- node[right, font=\footnotesize] {$\mathcal{P}_{\text{filtered}}$} (trie);
-
   \end{tikzpicture}
-  \caption{Static Semantic Filtering pipeline for DCA-Trie v1. Unlike baseline methods that convert all enumerated paths directly into a trie, DCA-Trie v1 evaluates the vector relevance of each candidate structural path against the standalone question intent prior to generation, caching only the subset meeting the semantic threshold.}
+  \caption{Static Semantic Filtering pipeline for DCA‑Trie v1. Each candidate structural path is evaluated against the question vector prior to generation, caching only the subset meeting the semantic threshold.}
   \label{fig:v1}
 \end{figure}
 
 \subsection{Algorithm}
 
 \begin{algorithm}[htbp]
-  \caption{DCA-Trie v1 — Static Semantic Filtering at Construction Time}
+  \caption{DCA‑Trie v1 — Static Semantic Filtering at Construction Time}
   \label{alg:v1}
   \begin{algorithmic}[1]
     \Require Knowledge graph $\mathcal{G}$; question entities $\mathcal{E}_q$;
     question $q$; max hop depth $L$; admission threshold $\tau$;
     sentence encoder $E$
-    \Ensure Semantically filtered KG-Trie $\mathcal{T}^{\text{v1}}$
+    \Ensure Semantically filtered KG‑Trie $\mathcal{T}^{\text{v1}}$
 
     \State \textbf{Precompute query embedding:}
     $\mathbf{u} \gets E(\text{query}(q, \varepsilon))$
@@ -290,29 +338,29 @@ DCA-Trie v1 actively resolves Gap~1 (the severe permissiveness problem) alongsid
 
 \subsection{Complexity Analysis}
 
-The initial vector-grounded offline compilation matrix cost of structuring $\mathcal{T}^{\text{v1}}$ deterministically evaluates to mathematical $O(|\mathcal{P}| \cdot d_E)$, formally bounded by the absolute enumeration magnitude $|\mathcal{P}|$ harvested by the preliminary BFS topological expansion and constrained directly by the dense dimensional projection $d_E = 384$. However, this calculation is amortised entirely as a solitary fixed-cost offline phase executing strictly prior to temporal token expansion limits. Following compilation, sequential runtime generative complexity sustains an optimal mathematical constant $O(d)$, identically mirroring baseline GCR performance. This holds theoretically since generation token lookup querying specifically traversing $\mathcal{T}^{\text{v1}}$ functionally executes exact identical $O(1)$ child branch hashing parallel to the unfiltered structural counterpart. Conversely, RAM constraint parameters regarding $\mathcal{T}^{\text{v1}}$ optimize tightly to $O(|\mathcal{P}_{\text{filtered}}| \cdot L)$, demonstrating a severe proportional scalar structural reduction compared against massive GCR array matrices uniformly bounding at $O(|\mathcal{P}| \cdot L)$, mathematically directly proportionate to the observed rejection filtration parameter.
+Building $\mathcal{T}^{\text{v1}}$ requires an offline cost of $O(|\mathcal{P}| \cdot d_E)$, where $|\mathcal{P}|$ is the number of BFS-enumerated paths and $d_E=384$ is the embedding dimension. This is a one-time preprocessing cost. During decoding, lookup complexity remains $O(d)$, matching GCR, because trie access uses the same constant-time child lookup structure. Memory usage scales as $O(|\mathcal{P}_{\text{filtered}}| \cdot L)$, which is typically much smaller than GCR's $O(|\mathcal{P}| \cdot L)$ when semantic filtering removes irrelevant paths.
 
 \subsection{Faithfulness Guarantee}
 
-Consequently, the DCA-Trie v1 execution logically asserts absolute structural faithfulness strictly by architectural definition. Every scalar path strictly verified mathematically within the retained set $\mathcal{P}_{\text{filtered}}$ organically inherits entirely from the strict generation boundary $\textsc{BFS}(\mathcal{G}, \mathcal{E}_q, L)$. By rigorous definition, this primary origin subset guarantees absolute structural coherence wherein every sequential local triplet $(e_{i-1}, r_i, e_i) \in \mathcal{T}$ verifies rigorously against deterministic graph edges. Executing dense multi-vector distance exclusions removes exclusively mathematically valid subsets falling short relative to semantic correlation vectors, rather than interpolating novel fabricated tokens into the search tree matrix. Consequently, every token array traversing through the modified structure $\mathcal{T}^{\text{v1}}$ continuously maps specifically to formally sound underlying valid prefixes, entirely confirming the rigorous mathematical constraints defined by Condition~F.
+DCA‑Trie v1 preserves structural faithfulness by construction. Every retained path in $\mathcal{P}_{\text{filtered}}$ comes from $\textsc{BFS}(\mathcal{G}, \mathcal{E}_q, L)$, so each triplet $(e_{i-1}, r_i, e_i)$ remains a valid graph edge. Semantic filtering only removes paths; it does not introduce new tokens or edges. Therefore, any token admitted through $\mathcal{T}^{\text{v1}}$ remains structurally grounded, satisfying Condition~F.
 
 % -----------------------------------------------------------------------------
-\section{DCA-Trie v2: Step-Wise Dynamic Expansion}
+\section{DCA‑Trie v2: Step‑Wise Dynamic Expansion}
 \label{sec:ch3v2}
 % -----------------------------------------------------------------------------
 
 \subsection{Design Rationale}
 
-DCA-Trie v2 formally operationalises the complete continuous specification delineated in Equation~\eqref{eq:dca_oracle} by aggressively conditioning the structural constraint oracle upon the fluidly evolving sequential dimension $y_{<t}$ at strictly every evaluation tick. The mathematical motivation asserts that $y_{<t}$ strictly conveys deterministic progression parameters invisible to the standalone initial target $q$: specifically, it sequentially verifies exactly which logical entity trajectories and relational mappings have been irreversibly committed within the active analytical chain, strictly orienting subsequent structural vectors directly in alignment with the underlying parametrised search heading. Illustratively, if the latent decoding matrix executes a positional commit regarding \textit{Elvis\_Presley $\to$ starred\_in $\to$ Blue\_Hawaii}, purely mathematically valid subsequent evaluations strictly bind exclusively to \textit{Blue\_Hawaii}. Consequently, the dynamic context vector $E(\text{query}(q, y_{<t}))$ mathematically materialises this orientation strictly by condensing original natural semantics congruently with the dynamically unfolding logical premise structure.
+DCA‑Trie v2 implements the full dynamic oracle in Equation~\eqref{eq:dca_oracle} by conditioning constraints on the evolving prefix $y_{<t}$ at each step. The key motivation is that $y_{<t}$ provides information not available from $q$ alone: it reveals which entities and relations the model has already committed to. If decoding has already selected a path such as \textit{Elvis\_Presley $\to$ starred\_in $\to$ Blue\_Hawaii}, the next valid expansions should be centered on \textit{Blue\_Hawaii}. The context embedding $E(\text{query}(q, y_{<t}))$ captures exactly this evolving direction.
 
-Architecturally, DCA-Trie v2 inherently adopts the foundational continuous traversal topology proposed natively within DoG \citep{li2024dog}. However, it critically overrides DoG's explicitly naive structurally blind traversal logic (formalised originally via Equation~\ref{eq:dog} within Chapter~2) substituting a highly supervised semantically bounded expansion paradigm. Following every formal entity commit cycle $e_t$, the valid constraint tree extends explicitly only mapping strictly verified structural bounding neighbours corresponding to $e_t$ evaluating identically at or beyond the spatial gating threshold $\tau$:
+Architecturally, v2 follows the step-wise traversal pattern introduced in DoG \citep{li2024dog}, but replaces unconstrained local expansion with semantic gating. After each committed entity $e_t$, the trie expands only to structurally valid neighbors that also pass the threshold $\tau$:
 \begin{equation}
   \mathcal{T}_{t+1} = \mathcal{T}_t \;\cup\; \bigl\{(e_t,\, r,\, e') :
   (e_t, r, e') \in \mathcal{T}_{\mathcal{G}} \;\wedge\;
   \text{score}(e', q, y_{<t}) \geq \tau\bigr\}
   \label{eq:v2expansion}
 \end{equation}
-where $\mathcal{T}_{\mathcal{G}}$ denotes the absolute bound enclosing all graph triplets. This fundamental substitution---transforming unconstrained scalar concatenation into aggressively gated vector intersection---functions as the primary structural derivation demarcating strictly bounded DCA-Trie v2 mechanics against permissive DoG arrays. This computationally continuous validation algorithm enforcing persistent re-evaluation cascading left-to-right natively models inside Figure~\ref{fig:v2}.
+where $\mathcal{T}_{\mathcal{G}}$ is the set of graph triplets. This change is the core distinction between DCA‑Trie v2 and permissive dynamic expansion: expansion remains structurally valid, but is now semantically selective at every step. The full workflow is shown in Figure~\ref{fig:v2}.
 
 \begin{figure}[htbp]
   \centering
@@ -325,7 +373,7 @@ where $\mathcal{T}_{\mathcal{G}}$ denotes the absolute bound enclosing all graph
 
     \node[box] (step) {Decoding Step $t$\\with partial $y_{<t}$};
     \node[box, below=1cm of step] (llm) {LLM calculates\\logits for $y_t$};
-    \node[box, right=1.5cm of step] (trie) {Current KG-Trie $\mathcal{T}_{t-1}$};
+    \node[box, right=1.5cm of step] (trie) {Current KG‑Trie $\mathcal{T}_{t-1}$};
 
     \node[box, below=1cm of trie] (lookup) {Lookup Valid\\Tokens $\mathcal{V}_t$};
 
@@ -343,16 +391,15 @@ where $\mathcal{T}_{\mathcal{G}}$ denotes the absolute bound enclosing all graph
 
     \draw[arrow] (commit) -| node[pos=0.25, below, font=\footnotesize] {Trigger Expansion} (expand);
     \draw[arrow] (expand) |- node[pos=0.75, above, font=\footnotesize] {Update to $\mathcal{T}_t$} (trie);
-
   \end{tikzpicture}
-  \caption{Step-Wise Dynamic Expansion workflow for DCA-Trie v2. After each generated entity is committed during beam search, the logical reasoning context updates. The framework fetches the direct local structural neighbours of the new entity from the Freebase graph and semantically filters them against the updated intent context, incrementally expanding the valid constraint set only along mathematically relevant pathways.}
+  \caption{Step‑Wise Dynamic Expansion workflow for DCA‑Trie v2. After each generated entity is committed during beam search, the framework fetches local structural neighbours of the new entity from Freebase and semantically filters them against the updated intent context, incrementally expanding the valid constraint set only along mathematically relevant pathways.}
   \label{fig:v2}
 \end{figure}
 
 \subsection{Algorithm}
 
 \begin{algorithm}[htbp]
-  \caption{DCA-Trie v2 — Step-Wise Semantic Expansion}
+  \caption{DCA‑Trie v2 — Step‑Wise Semantic Expansion}
   \label{alg:v2}
   \begin{algorithmic}[1]
     \Require Knowledge graph $\mathcal{G}$; question entities $\mathcal{E}_q$;
@@ -398,28 +445,28 @@ where $\mathcal{T}_{\mathcal{G}}$ denotes the absolute bound enclosing all graph
 
 \subsection{Complexity Analysis}
 
-The isolated temporal expansion penalty natively observed within DCA-Trie v2 calculates reliably as $O(|\mathcal{N}_{e_t}| \cdot d_E)$ strictly occurring solely during discrete structural entity coordinate commits, where $|\mathcal{N}_{e_t}|$ denotes the raw local neighbour vertex magnitude intersecting $e_t$. Although theoretically bounded marginally at worst-case limits equalling density $d$ (translating to the absolute global mean array out-degree limit), practical evaluation empirically observes stringent continuous decay directly truncating local neighbourhoods. The resulting verified operation threshold evaluates exclusively down to strict limits spanning $O(|\mathcal{N}_{e_t}^{\text{filtered}}| \cdot d_E)$, systematically holding bounded parameters strictly at $|\mathcal{N}_{e_t}^{\text{filtered}}| \ll d$ surrounding overwhelmingly most operational coordinate nodes. Crucially, intermediate textual relation token steps natively executing sequentially between strict dense node boundaries strictly bypass dynamic recomputations, reliably capping isolated interval cost symmetrically matching bare GCR generation scaling strictly bounded at $O(d)$. Furthermore, exhaustive embedding state caching intrinsically dictates structurally repeated dense node overlapping sequentially within homogenous traversals incurs zero supplementary computational encoder latency matrices inherently.
+In v2, expansion cost occurs only when an entity token is committed, with complexity $O(|\mathcal{N}_{e_t}| \cdot d_E)$, where $|\mathcal{N}_{e_t}|$ is the neighborhood size of $e_t$. In practice, semantic filtering reduces this to approximately $O(|\mathcal{N}_{e_t}^{\text{filtered}}| \cdot d_E)$ with $|\mathcal{N}_{e_t}^{\text{filtered}}| \ll d$ for most nodes. Relation-token steps do not trigger expansion, so their cost remains comparable to standard constrained decoding. Caching further reduces overhead by avoiding repeated encoding of previously seen candidates.
 
 \subsection{Faithfulness Guarantee}
 
-Syntactically paralleling fundamental v1 verification logic, DCA-Trie v2 implicitly governs absolute mathematical structural faithfulness exclusively strictly by mathematical formulation. Literally every isolated local token set interpolated systematically into the constraint set via Equation~\eqref{eq:v2expansion} mathematically asserts the core structural antecedent $(e_t, r, e') \in \mathcal{T}_{\mathcal{G}}$, confirming rigid deterministic adherence to established topological factual arrays. The applied similarity gating equation computationally enforces exclusively a supplementary pruning logic functionally overlaid strictly sequentially atop existing bounded topology filters; it fundamentally functions entirely lacking generative token hallucination capabilities natively. Analytically, token array subsets systematically fail valid mathematical injection mapping explicitly expanding structural bounds $\mathcal{T}_t$ unless perfectly passing foundational intersection membership validation regarding absolute native space constraints mapping $(e_t, r, e') \in \mathcal{T}_{\mathcal{G}}$, continuously observing strict adherence verifying absolute target Condition~F.
+As with v1, v2 preserves structural faithfulness by construction. Every expansion candidate must satisfy $(e_t, r, e') \in \mathcal{T}_{\mathcal{G}}$ in Equation~\eqref{eq:v2expansion}. Semantic scoring only prunes this structurally valid set; it does not add new graph transitions. Therefore, all admitted tokens remain graph-grounded and Condition~F is preserved.
 
 % -----------------------------------------------------------------------------
 \section{Baseline Systems}
 \label{sec:ch3baseline}
 % -----------------------------------------------------------------------------
 
-Four explicit system configurations are rigorously evaluated to decisively answer the foundational research questions:
+Four system configurations are evaluated to answer the research questions:
 
-\textbf{CoT Baseline:} The standard GCR Llama-3.1-8B target model \citep{dubey2024llama3} executing autonomously without any applied structural constraint oracle, prompted via standard chain-of-thought methodologies mapping multi-hop reasoning. This fundamental baseline mathematically establishes the absolute target accuracy achievable by a capable parametric reasoning engine completely lacking underlying topological grounding, establishing the direct deductive reference point for isolating explicit gains derived directly via strictly constrained structural routing algorithms.
+\textbf{CoT Baseline:} The same Llama‑3.1‑8B model \citep{dubey2024llama3} used in GCR, run without any KG constraint oracle and prompted with standard chain-of-thought reasoning. This provides the unconstrained reference point.
 
-\textbf{GCR:} The complete foundational Graph-Constrained Reasoning framework \citep{luo2024gcr} driving the purely static KG-Trie oracle matrix defined strictly as $\mathcal{W}_{\text{val}}(t) = f(\mathcal{G}, \mathcal{E}_q)$, reproduced mathematically exactly from GCR's transparent Llama-3.1-8B model release checkpoint. This serves as the primary evaluation parameter baseline. Formal reproduction criteria mandate WebQSP target parameter Hits@1 alignment executing accurately within a rigorous 1--2\% variance boundary matching historically published $92.6\%$ thresholds.
+\textbf{GCR:} The original Graph‑Constrained Reasoning framework \citep{luo2024gcr} with static KG‑Trie constraints $\mathcal{W}_{\text{val}}(t)=f(\mathcal{G},\mathcal{E}_q)$. This is the primary constrained baseline. Reproduction targets WebQSP Hits@1 within 1--2\% of the reported 92.6\%.
 
-\textbf{DCA-Trie v1:} The strict deterministic offline semantic filtering algorithm formalised explicitly in Section~\ref{sec:ch3v1}, technically implemented entirely executing as an encapsulated preprocessing intercept within GCR's native inference logic, configuring semantic relevance thresholds mapping exactly to internally calibrated validation limits $\tau$.
+\textbf{DCA‑Trie v1:} The static semantic filtering variant described in Section~\ref{sec:ch3v1}, implemented as a preprocessing step in the GCR pipeline with validation-calibrated threshold $\tau$.
 
-\textbf{DCA-Trie v2:} The advanced, dynamic sequential expansion schema formalised comprehensively within Section~\ref{sec:ch3v2}, seamlessly executing explicitly via an actively recursive pipeline algorithm iteratively embedded atop baseline GCR traversal bounds.
+\textbf{DCA‑Trie v2:} The dynamic step-wise expansion variant described in Section~\ref{sec:ch3v2}, integrated into the decoding process.
 
-To guarantee empirical parameter equivalence, all four distinct test configurations fundamentally operate universally sharing the identical Llama-3.1-8B foundation backbone parameter weights. Beam search limits execute definitively locked at parameter bounds $k = 5$, anchoring strictly to identically defined underlying entity-linking schema detecting exact input vectors $\mathcal{E}_q$ identically. This strict mathematical normalisation definitively mathematically isolates observed target divergences natively mapping causation exclusively evaluating inherent constraint mathematical oracle efficiencies, rather than compounding arbitrary backbone anomalies or divergent entity resolution capabilities.
+To ensure fair comparison, all settings use the same Llama‑3.1‑8B backbone, the same entity-linking pipeline for $\mathcal{E}_q$, and matched decoding settings (beam width $k=5$ for constrained systems). This isolates differences to the constraint-oracle design rather than model or preprocessing variation.
 
 % -----------------------------------------------------------------------------
 \section{Evaluation Protocol}
@@ -428,64 +475,64 @@ To guarantee empirical parameter equivalence, all four distinct test configurati
 
 \subsection{Datasets}
 
-Strict formal evaluation metrics strictly govern execution processing across two standard industry-verified KGQA corpora natively mapping the dense Freebase graph matrix \citep{bollacker2008freebase}:
+Evaluation is conducted on two standard Freebase-based KGQA datasets \citep{bollacker2008freebase}:
 
-\textbf{WebQSP} \citep{yih2016value}: Containing strictly $4{,}737$ curated topological questions predominantly requiring traversal at depth limits mapping $1$ to $2$ discrete hop bounds. The definitive isolated test subset functions explicitly for the core aggregated evaluation execution target. Independently, a mathematically disjoint calibration extraction of strictly 100 dedicated vectors securely determines exclusively dynamic activation filter baseline boundaries $\tau$, securely protecting test data mathematically shielding metrics from contamination artifacts.
+\textbf{WebQSP} \citep{yih2016value}: 4,737 questions, mostly requiring 1--2 hops. The standard test set is used for evaluation. A separate disjoint set of 100 questions is used only for threshold calibration.
 
-\textbf{ComplexWebQuestions (CWQ)} \citep{talmor2018web}: Representing a significantly more structurally dense computational workload, possessing strictly $34{,}689$ queries executing path ranges scaling intensely at depth bounds mapping $1$ up to $4$ hops. The absolute full isolated target component evaluates uniformly. Strictly zero intersecting vectors derive calibration bounds natively across any tuning iteration schema.
+\textbf{ComplexWebQuestions (CWQ)} \citep{talmor2018web}: 34,689 questions with higher compositional complexity and hop depths up to 4. This dataset is used in full for evaluation with no overlap with the calibration split.
 
 \subsection{Evaluation Metrics}
 
-Five definitive quantitative scalar targets evaluate strictly mapping each explicit structural architecture across both discrete testing graphs:
+Five metrics are used across both datasets:
 
 \begin{enumerate}
-  \item \textbf{Hits@1:} The proportional accuracy coefficient exactly isolating the maximum predicted deterministic token output logically mapped unequivocally against the validated target answer entity array. This scalar explicitly governs absolute structural effectiveness parameters, strictly supporting symmetric baseline validation against published core GCR targets.
+  \item \textbf{Hits@1:} The proportion of examples where the top predicted answer matches the gold entity.
 
-  \item \textbf{F1:} Mathematical fractional convergence calculated fundamentally executing precision parameter F1 computations assessing valid overlapping target entity matrix strings directly paralleling standardised evaluation vectors enforced explicitly by \citet{lan2022survey}. This vector strictly guarantees continuous scalar attribution properly mapping partially valid multi-target truth matrices inherently possessing heterogeneous output answers.
+  \item \textbf{F1:} Entity-level overlap score for settings with multiple acceptable answers, following common KGQA evaluation practice \citep{lan2022survey}.
 
-  \item \textbf{Structural Faithfulness Rate:} The exact empirical proportionality representing completely validated sequential decoding logic inherently passing full continuous token evaluation mapping entirely verified logical triplet arrays rigorously traversing known graph boundaries. Metric calculations natively invoke intensive mathematical traversal checking explicitly mapped executing Freebase graph matrix parameters sequentially comparing every output node vector.
+  \item \textbf{Structural Faithfulness Rate:} The fraction of generated paths whose triplets are all valid in the underlying KG.
 
-  \item \textbf{Semantic Irrelevance Ratio (SIR):} Systematically calculated following rigorous formulations natively expressed precisely mapping Equations~\eqref{eq:sir_step}--\eqref{eq:sir_aggregate}, statically bounding exact non-tunable static boundaries $\tau_{\text{ref}} = 0.3$.
+  \item \textbf{Semantic Irrelevance Ratio (SIR):} Computed using Equations~\eqref{eq:sir_step}--\eqref{eq:sir_aggregate} with fixed reference threshold $\tau_{\text{ref}}=0.3$.
 
-  \item \textbf{Average Trie Size Per Step:} The exact aggregated arithmetic mean determining strictly valid constraint array parameter magnitudes denoted fundamentally as $|\mathcal{V}_t|$ structurally filtered mathematically at every sequential beam generation tick arrayed natively globally over total decoding lengths indexing entirely complete question data sets. This strict volume derivation provides deterministic mathematical visibility distinctly mapping precisely exact scaling magnitude ratios actively bounded strictly by mathematical filter limits dynamically.
+  \item \textbf{Average Trie Size Per Step:} The mean size of the valid token set $|\mathcal{V}_t|$ across decoding steps, used as a direct efficiency indicator of constraint selectivity.
 \end{enumerate}
 
-\subsection{Hop-Depth Stratification}
+\subsection{Hop‑Depth Stratification}
 
-Critically, all isolated statistical coefficients (strictly excluding purely boolean topological structural faithfulness parameters) evaluate uniformly segmented formally mapping explicit deterministic underlying path complexity parameters traversing depth variables corresponding to 1, 2, 3, and exactly 4 limits explicitly, maintaining consistent testing parallels strictly echoing constraints documented previously by \citet{lan2022survey}. This explicit mathematical segregation strictly confirms critical observation structures, acknowledging explicitly the fundamental permissiveness error inherently scales catastrophically overlapping intensive query arrays inherently demanding longer bounds, proving identically DCA-Trie's core filtering architecture optimally negates scaling overhead accurately intersecting depth variables proportionately. Formally pooling test bounds entirely ignores fundamentally distinct parametric characteristics skewing final mathematical validity.
+All major metrics (except binary structural faithfulness) are also reported by hop depth (1, 2, 3, and 4), consistent with prior KGQA analysis \citep{lan2022survey}. This is important because permissiveness effects usually increase with hop depth; aggregate-only reporting can hide this behavior.
 
 \subsection{Experimental Configuration}
 
-All empirical computational targets continuously execute mapping exactly over a static hardware framework allocating isolated limits natively bounded by an NVIDIA A100 GPU hosting exclusively 40~GB active VRAM parameters. The baseline Llama-3.1-8B foundation target model systematically executes evaluating strictly loaded under continuous 16-bit computational limits natively invoked explicitly bridging HuggingFace Transformers pipelines \citep{wolf2020transformers}. Fundamental inference beam parallel logic universally assigns absolute bounds mapping uniquely $k = 5$ determining valid valid structural matrices equivalently mirroring identically across all constrained limits, whereas standard baseline targets intrinsically collapse back strictly limiting at $k = 1$ natively evaluating unconstrained iterations logically aligned completely matching original internal GCR test bounds identically. The highly efficient \texttt{all-MiniLM-L6-v2} natural language embedding transformer securely initialises seamlessly utilizing standard explicit API requests invoking `sentence-transformers` \citep{reimers2019sentence}, explicitly mapped to asynchronous computational isolation boundaries completely restricted targeting secondary CPU pipelines deliberately structurally avoiding overlapping continuous multi-threaded GPU-LLM inference parameters logically causing heavy processing contention matrix overlaps. Generative bounds universally map strict maximal limits scaling mathematically accurately at deterministic variables bound tightly evaluating explicitly spanning $3L + 2$ sequential array targets mapping strictly maximum defined parameter limits $L$ derived explicitly evaluating corpus requirements natively (equating tightly to exactly 2 matching WebQSP boundaries, precisely 4 aligned parallel matching active CWQ bounds natively).
+All experiments are run on a single NVIDIA A100 (40GB). Llama‑3.1‑8B inference uses 16-bit precision through HuggingFace Transformers \citep{wolf2020transformers}. Constrained systems use beam width $k=5$, while the unconstrained CoT baseline uses $k=1$ to match the original GCR setup. The \texttt{all-MiniLM-L6-v2} encoder is served through `sentence-transformers` \citep{reimers2019sentence} on CPU to avoid GPU contention with LLM decoding. Maximum generation length is set to $3L+2$, with $L=2$ for WebQSP and $L=4$ for CWQ.
 
 % -----------------------------------------------------------------------------
 \section{Ablation and Sensitivity Analysis}
 \label{sec:ch3ablation}
 % -----------------------------------------------------------------------------
 
-Three critical independent isolated ablation methodologies rigorously deconstruct isolated core structural properties effectively defining foundational dependencies inherently mapping deterministic parameter variables uniformly bridging the overall framework logic efficiently:
+Three ablation studies are used to isolate the main design factors:
 
-\textbf{Ablation 1 — Threshold sensitivity ($\tau$):} Statically evaluating precisely aligned configurations isolating versions DCA-Trie v1 comprehensively matching sequentially against structural v2 pipelines evaluates scalar tuning variables rigorously traversing boundary domains uniformly arrayed mapping constraints $[\tau=0.15 \dots 0.45]$ spaced sequentially evaluating exact $0.075$ interval steps natively. Total baseline parameter states dynamically remained strictly static across mathematical execution limits inherently proving deterministic precision-recall filtering tradeoffs mapping threshold mechanics directly: strict maximum $\tau$ levels explicitly enforce narrower valid spaces mathematically driving SIR minimizations tightly alongside aggressive average trie contraction bounds natively explicitly exposing equivalent failure conditions structurally scaling concurrent FNR parameters mathematically proportionally. Aggregated continuous matrices accurately isolate specific Hits@1, SIR, and exact derived FNR mathematical thresholds arrayed completely scaling continuous WebQSP boundaries natively.
+\textbf{Ablation 1 — Threshold sensitivity ($\tau$):} For both v1 and v2, we sweep $\tau \in [0.15, 0.45]$ in steps of 0.075 to quantify the precision--recall trade-off. Higher $\tau$ is expected to reduce SIR and trie size, but may increase false negatives. We report Hits@1, SIR, and FNR on WebQSP.
 
-\textbf{Ablation 2 — Encoder architecture:} Fundamental structural validation limits thoroughly evaluate DCA-Trie v1 execution logically mapped explicitly leveraging mutually exclusive alternative embedding engines mathematically replacing \texttt{all-MiniLM-L6-v2}: (a) continuous deep contextual boundaries bound executing \texttt{all-mpnet-base-v2}; (b) entirely sparse token retrieval arrays scaling independent non-neural BM25 lexical structures natively; inherently paralleled by (c) continuous integrated internal LLM base transformer token embedding components seamlessly leveraged mapping internal hidden state vectors dynamically extracting complete logical paths natively. Systematic derivations structurally map empirical selection parameters explicitly mathematically verifying earlier continuous arguments posited accurately within Chapter~2 (Section~2.8.2) natively.
+\textbf{Ablation 2 — Encoder architecture:} We replace \texttt{all-MiniLM-L6-v2} in v1 with alternatives: (a) \texttt{all-mpnet-base-v2}, (b) sparse BM25 retrieval, and (c) embeddings from internal LLM hidden states. This tests whether the observed gains depend on the chosen semantic encoder.
 
-\textbf{Ablation 3 — Beam width ($k$):} Sequential deterministic analysis parameters map strictly explicit generative beam boundaries uniformly evaluating DCA-Trie v2 arrayed mapping $k \in \{1, 3, 5, 10\}$. Inherently confirming dynamic continuous filtering limits aggressively contracting exact valid space metrics denoted explicitly strictly matching $|\mathcal{V}_t|$ structurally evaluating continuous sequence parameters actively reduces expansion spaces natively driving smaller proportional candidate permutations rigorously mapping identical generation ticks logically resulting correctly identifying explicit narrow beam topologies directly operating systematically scaling inherently optimal validation bounds mapping identical equivalent GCR baselines deterministically natively. This explicitly maps complete exact exploration dynamics bridging semantic filtration actively bound mapping sequential expansion metrics logically perfectly natively.
+\textbf{Ablation 3 — Beam width ($k$):} For v2, we test $k \in \{1,3,5,10\}$ to examine whether stronger semantic filtering allows comparable or better performance under narrower beam search.
 
 % -----------------------------------------------------------------------------
 \section{Scope Boundaries and Anticipated Limitations}
 \label{sec:ch3limitations}
 % -----------------------------------------------------------------------------
 
-Complete continuous parameters objectively evaluate acknowledging strict limiting computational boundaries naturally bound actively informing accurate evaluation paradigms presented extensively arrayed validating results systematically inside Chapter~4 cleanly guaranteeing honest mathematical characterizations precisely mirroring experimental bounds distinctly natively:
+This study has clear scope boundaries that should guide interpretation of Chapter~4 results:
 
-\textbf{Single KG and domain:} All core structural executions universally constrain validation topologies precisely mapping exclusively inside Freebase internal bounded graph limits uniquely natively. Fundamental systematic matrix extensions adapting DCA-Trie architectural abstractions broadly mapping equivalent alternative KGs natively (such as structural mappings universally aligning with Wikidata or abstract ConceptNet pipelines definitively) functionally denote strict logical future continuous research domains decisively left unequivocally outside present empirical evaluation metrics exactly.
+\textbf{Single KG and domain:} Experiments are conducted only on Freebase-based KGQA. Generalisation to other KGs (e.g., Wikidata, ConceptNet) remains future work.
 
-\textbf{No model fine-tuning:} Structural foundation bounds securely preserve exact core baseline Llama-3.1-8B internal inference vectors definitively initialized strictly mapping identical parameter structures initially released aligning perfectly tracking completely unmodified GCR specifications directly. Complete structural accuracy optimizations derived natively exclusively evaluating continuous DCA-Trie frameworks mathematically source exactly completely validating constraint oracle mechanics intrinsically distinct uncoupled natively independently completely bypassing all adaptive internal LLM tuning limits effectively completely natively.
+\textbf{No model fine‑tuning:} The Llama‑3.1‑8B backbone is not fine-tuned. Improvements therefore reflect changes in constraint-oracle design rather than parameter adaptation.
 
-\textbf{Empirical faithfulness evidence:} Foundational execution Condition~F validation mathematically evaluates precisely isolated empirical checking actively bound exhaustively tracing entirely all output relations mathematically natively uncoupled completely entirely evaluating explicitly isolated formal logical derivations structurally identical actively perfectly validating parallel prior empirical executions \citep{luo2024gcr, li2024dog} inherently sufficiently ensuring strict operational validation completely natively.
+\textbf{Empirical faithfulness evidence:} Condition~F is validated empirically by checking generated paths against KG triplets, following established practice in prior work \citep{luo2024gcr, li2024dog}.
 
-\textbf{Threshold as a hyperparameter:} Mathematical boundary limits isolating $\tau$ securely derived scaling validation parameters heavily depend purely mapping subset metrics inherently introducing small explicit probabilistic domain shift vectors logically preventing optimal generalisation perfectly mapping inherently unassociated datasets perfectly natively. Explicit ablation validation parameters critically (Ablation 1) fundamentally evaluate explicit scalar matrices isolating mapping boundaries distinctly strictly mathematically accurately mapping parametric variance logically naturally strictly.
+\textbf{Threshold as a hyperparameter:} The selected $\tau$ is tuned on a validation subset and may not transfer optimally across datasets. Ablation~1 quantifies this sensitivity.
 
-\textbf{False negative risk:} Continuous constraint Condition~P inherently targets robust minimal mathematical minimization securely validating overall dynamic filter mechanics exactly though an explicit mathematically distinct marginal error scaling logically correctly bounding non-zero filtering boundaries strictly risks incorrectly pruning entirely mathematically valid targets dynamically natively completely unassociated explicitly mathematically aligned surface string parameters naturally specifically bounding valid vectors explicitly embedding divergent relational targets mapping logically distally isolated completely outside surface token ranges cleanly accurately completely cleanly natively natively uniquely actively analysed distinctly systematically completely formally within Chapter~4.
+\textbf{False negative risk:} Even with Condition~P, semantic filtering can still remove some valid paths, especially when lexical form and graph semantics diverge. This trade-off is analysed explicitly in Chapter~4.
 
-\textbf{Latency:} Structural overhead parameters explicitly isolate sequential continuous computational times distinctly natively evaluating encoder operations mathematically expanding explicit operational boundaries naturally inherently distinctly uncoupled explicitly operating differently mapping zero identical equivalent scalar components natively evaluating equivalent parallel baseline GCR setups independently exclusively perfectly mapped natively specifically tracking wall-clock scalar bounds exclusively reported natively structurally cleanly mapping within Chapter~4 boundaries accurately natively actively acknowledging explicit production deployment limit pipelines uniformly reside firmly securely structurally outside overall valid system boundary objectives distinctively uniformly actively accurately structurally natively globally precisely exclusively functionally independently strictly completely cleanly conclusively definitively functionally natively explicitly conclusively directly conclusively identically uniformly intrinsically definitively explicitly deterministically definitively inherently systematically conclusively functionally thoroughly comprehensively explicitly deterministically objectively systematically.
+\textbf{Latency:} Semantic scoring introduces additional compute overhead relative to GCR. Wall-clock latency is therefore reported, but production deployment optimisation is outside the scope of this thesis.

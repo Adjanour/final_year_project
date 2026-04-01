@@ -7,6 +7,21 @@
 			"command": "latexmk",
 			"args": [
 				"-pdf",
+				"-synctex=1",
+				"-interaction=nonstopmode",
+				"-file-line-error",
+				"-recorder",
+				"thesis.tex"
+			],
+			"isBackground": false,
+			"group": "build"
+		},
+		{
+			"label": "Clean Aux (latexmk -c)",
+			"type": "shell",
+			"command": "latexmk",
+			"args": [
+				"-c",
 				"thesis.tex"
 			],
 			"isBackground": false,
@@ -18,7 +33,7 @@
 			"command": "bash",
 			"args": [
 				"-lc",
-				"latexmk -C && latexmk -pdf thesis.tex"
+				"latexmk -C thesis.tex && latexmk -pdf -synctex=1 -interaction=nonstopmode -file-line-error -recorder thesis.tex"
 			],
 			"isBackground": false,
 			"group": "build"
@@ -29,6 +44,10 @@
 			"command": "latexmk",
 			"args": [
 				"-pdf",
+				"-synctex=1",
+				"-interaction=nonstopmode",
+				"-file-line-error",
+				"-recorder",
 				"-pvc",
 				"thesis.tex"
 			],
