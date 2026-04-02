@@ -77,6 +77,8 @@
 \usepackage{algorithm}       % Algorithm float environment
 \usepackage{algpseudocode}   % Algorithmic pseudocode commands
 \usepackage{threeparttable}   % Tables with footnotes
+\providecommand*{\theHalgorithm}{\thechapter.\arabic{algorithm}}
+\captionsetup[algorithm]{hypcap=false}
 
 % Bordered table helpers (full row/column lines)
 \newenvironment{gridtabular}[1]{\begin{tabular}{|#1|}\hline}{\end{tabular}}
@@ -95,6 +97,7 @@
 %=== Typography & Misc ===========================================================
 
 \usepackage{microtype}       % Subtle spacing improvements (reduces overfull hboxes)
+\setlength{\emergencystretch}{2em}
 \usepackage{hyphenat}        % Manual hyphenation control
 \usepackage{lipsum}          % Placeholder text - remove when chapters are complete
 
