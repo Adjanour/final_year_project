@@ -10,7 +10,7 @@
 \label{sec:ch3intro}
 % -----------------------------------------------------------------------------
 
-This chapter establishes the methodological basis of the Dynamic Context‑Aware Trie (DCA‑Trie) framework and justifies its suitability for the central research problem. It begins by formalising the problem and introducing the Semantic Irrelevance Ratio (SIR) as the main diagnostic for constraint permissiveness independent of final answer accuracy. The chapter next explains the semantic scoring mechanism and presents the two DCA‑Trie variants, including their algorithmic design, complexity, and faithfulness guarantees. It then defines the baseline systems, evaluation protocol, and ablation strategy used for controlled testing, before outlining the scope boundaries and anticipated limitations that guide interpretation of the Chapter~4 results.
+This chapter outlines the methodological framework for the Dynamic Context-Aware Trie (DCA-Trie), a system designed to address the permissiveness problem in graph-constrained decoding. To evaluate whether DCA-Trie successfully balances structural faithfulness with contextual relevance, this chapter introduces a diagnostic metric: the Semantic Irrelevance Ratio (SIR). After formalizing the core problem and this SIR metric, the discussion details the underlying semantic scoring mechanism and the architectural design of both DCA-Trie variants. Finally, it establishes the baseline systems, evaluation protocol, and specific ablation strategies used to isolate the framework's effects, setting the boundaries for the experimental results analysed in Chapter~4.
 
 % -----------------------------------------------------------------------------
 \section{Formal Problem Specification}
@@ -19,15 +19,16 @@ This chapter establishes the methodological basis of the Dynamic Context‑Aware
 
 \subsection{Restating the Core Limitation of Existing Frameworks}
 
-As discussed in Chapter~2, existing knowledge graph-constrained generation frameworks, especially GCR \citep{luo2025-graph-constrained-reasoning} and DoG \citep{li2024-decoding-on-graphs}, rely on deterministic constraint oracles defined over the graph $\mathcal{G}$ and the identified question entities $\mathcal{E}_q$, i.e., $f(\mathcal{G}, \mathcal{E}_q)$. Whether the oracle is computed fully before decoding or expanded during decoding, the valid token set at step $t$ is still determined by:
+As established in Chapter~2, current graph-constrained frameworks (notably GCR \citep{luo2025-graph-constrained-reasoning} and DoG \citep{li2024-decoding-on-graphs}) rely on a deterministic oracle that looks only at the fixed graph $\mathcal{G}$ and the starting entities $\mathcal{E}_q$. Regardless of whether the system builds this oracle before decoding or expands it on the fly, the set of valid tokens at any step $t$ remains locked to structural logic:
 \begin{equation}
   \mathcal{W}_{\text{val}}^{\text{GCR}}(t) = f(\mathcal{G},\, \mathcal{E}_q)
   \quad \forall\, t
   \label{eq:gcr_oracle}
 \end{equation}
-This formulation does not use two essential sources of context: the semantic intent of the question $q$ and the evolving reasoning state in the partial sequence $y_{<t}$. As a result, all structurally reachable paths are treated as equally plausible, regardless of whether they are useful for answering the query. For dense multi-hop Freebase subgraphs, the admissible search space can grow to $|\mathcal{E}_q| \times d^3 \approx 8{,}000$ paths, although typically only one path corresponds to the gold answer.
 
-This design mixes two different requirements. \textit{Structural validity} requires that each permitted token corresponds to a valid graph transition; current methods generally satisfy this. \textit{Contextual relevance} requires that permitted tokens reflect what is semantically relevant at step $t$ for the specific question; this is largely missing in existing systems. The gap between these two requirements is the core \textit{permissiveness problem}.
+By ignoring both the semantic intent of the question $q$ and the reasoning trajectory already captured in the prefix $y_{<t}$, this formulation treats every structurally reachable path as equally plausible. In dense, multi-hop Freebase environments, this blindness causes catastrophic search space explosion. The framework might admit over 8,000 paths at depth 3, even though only a single path logically answers the query.
+
+The core issue is that these systems conflate two separate requirements. \textit{Structural validity} ensures the LLM only generates tokens that correspond to real graph edges, which current models do well. \textit{Contextual relevance} ensures the LLM only generates tokens that logically connect to the specific question at hand, which current models fail to do. This gap between structural compliance and semantic usefulness is the \textit{permissiveness problem}.
 
 \subsection{The Upgraded Oracle Specification}
 
@@ -65,19 +66,19 @@ where $q$ is the natural language query and $y_{<t} = (y_1, \ldots, y_{t-1})$ is
 \label{sec:ch3arch}
 % -----------------------------------------------------------------------------
 
-The DCA‑Trie system is designed as an extension of the Graph‑Constrained Reasoning (GCR) framework \citep{luo2025-graph-constrained-reasoning}, inheriting its four-layer pipeline architecture and modifying the constraint oracle layer to incorporate semantic relevance conditioning. The four layers are:
+Because DCA-Trie explicitly targets the constraint oracle layer, its architecture builds directly on the baseline pipeline from Graph-Constrained Reasoning (GCR) \citep{luo2025-graph-constrained-reasoning}. This reuse isolates the experimental effects: by holding the rest of the generation pipeline constant, the system guarantees any improvement in latency or search efficiency comes solely from the new oracle mechanism. The four layers function as follows:
 
 \begin{enumerate}
-  \item \textbf{Entity linking layer:} Identifies the set of question entities $\mathcal{E}_q$ from the natural language input question $q$ using a named entity recognition tool. These entities serve as the starting points for all KG path search operations. This layer is retained from GCR without modification.
+  \item \textbf{Entity Linking Layer (Unmodified):} A named entity recognition tool first isolates the core query entities $\mathcal{E}_q$ from the raw text question $q$. These isolated entities dictate where the downstream search algorithm is allowed to begin exploring the knowledge graph.
 
-  \item \textbf{Constraint oracle layer:} The primary site of DCA‑Trie's contribution. In baseline GCR, this layer constructs a KG‑Trie by breadth‑first search over the KG from $\mathcal{E}_q$ to a maximum depth of $L$ hops, encoding all reachable paths as a prefix tree before generation begins. DCA‑Trie replaces this with a semantically conditioned oracle. In v1, semantic filtering is applied at trie construction time, pruning paths whose cosine similarity to the input question falls below a threshold $\tau$. In v2, the oracle is additionally updated step‑wise during generation, re‑scoring the KG neighbourhood of each committed entity against the current reasoning context $(q, y_{<t})$ and admitting only relevant neighbours.
+  \item \textbf{Constraint Oracle Layer (DCA-Trie Contribution):} This is the mechanism that governs which tokens the LLM is allowed to generate. In GCR, this layer builds a static prefix tree (a KG-Trie) containing every possible blind path reachable within $L$ hops of the starting entities. DCA-Trie completely overhauls this. Whether via static pre-filtering (v1) or dynamic, step-by-step expansion (v2), the new oracle ensures no structural edge is admitted into the trie unless it also proves its semantic relevance to the question.
 
-  \item \textbf{Constrained decoding layer:} Applies the binary logit mask derived from the constraint oracle at every token generation step during beam search. This layer enforces structural faithfulness: only tokens that correspond to valid KG path prefixes in the oracle trie can be generated. This layer is structurally identical in GCR and DCA‑Trie; the only change is the oracle it queries.
+  \item \textbf{Constrained Decoding Layer (Unmodified):} During autoregressive generation using beam search, this layer intercepts the LLM logit distribution, applying a binary mask fetched from the oracle layer. By forcing the LLM to only output structurally and semantically approved tokens, it maintains 100\% ground-truth faithfulness to the knowledge graph.
 
-  \item \textbf{Inductive reasoning layer:} Uses GPT‑4o‑mini to synthesise the $K$ reasoning paths produced by constrained beam search into a single final answer. This layer is retained from GCR without modification.
+  \item \textbf{Inductive Reasoning Layer (Unmodified):} Once the constrained beam search produces $K$ top reasoning paths, GPT-4o-mini analyses these paths concurrently to synthesize the final natural language answer.
 \end{enumerate}
 
-Figure~\ref{fig:architecture} illustrates the full system architecture with the DCA‑Trie constraint oracle layer highlighted.
+Figure~\ref{fig:architecture} illustrates the layout, isolating the constraint oracle layer to highlight where the core semantic intervention occurs.
 
 \begin{figure}[H]
   \centering
@@ -113,13 +114,15 @@ Figure~\ref{fig:architecture} illustrates the full system architecture with the 
 \label{sec:ch3sir}
 % -----------------------------------------------------------------------------
 
-\subsection{Motivation}
+\subsection{Standard Metric Deficiencies}
 
-Standard metrics for KG-constrained decoding, including Hits@1, F1, and structural faithfulness, evaluate final outputs: whether the predicted answer is correct and whether generated paths remain graph-valid. However, these metrics do not directly measure how selective or efficient the constraint mechanism is. A model can still reach the right answer while searching through a large set of structurally valid but semantically irrelevant paths. To measure this directly, this work introduces the Semantic Irrelevance Ratio (SIR), a diagnostic that quantifies constraint permissiveness independently of final answer accuracy.
+Existing performance markers for knowledge graph decoding (such as Hits@1, F1, and structural faithfulness ratios) all share a major limitation: they measure output, not process. While these metrics indicate whether a framework found the right answer and stayed inside the graph, they obscure how the framework reached that answer. Even if a model successfully resolves the correct gold path, it might do so while blindly wandering through an enormous, resource-draining set of completely irrelevant paths.
+
+Thus, verifying accuracy is insufficient; the constraint mechanism itself must be measured for computational focus. To quantify exactly how permissive the oracle is independently of final output accuracy, this thesis introduces a novel diagnostic metric: the Semantic Irrelevance Ratio (SIR).
 
 \subsection{Formal Definition}
 
-Let $\mathcal{P}(q, t)$ denote the set of paths admitted by the active constraint oracle at decoding step $t$ for question $q$. A path $p \in \mathcal{P}(q, t)$ is treated as \textit{semantically irrelevant} if its cosine similarity to the question-context representation falls below a fixed reference threshold $\tau_{\text{ref}}$:
+Suppose $\mathcal{P}(q, t)$ represents all paths that the constraint oracle allows at decoding step $t$ for question $q$. To calculate SIR, the system must first define irrelevance. An individual candidate path $p \in \mathcal{P}(q, t)$ is structurally valid, but it fails the semantic stringency test if its contextual similarity drops below a hard baseline threshold $\tau_{\text{ref}}$:
 \begin{equation}
   \text{irrelevant}(p, q, y_{<t}) = \mathbf{1}\!\left[
     \cos\!\bigl(E(p),\; E(\text{concat}(q, y_{<t}))\bigr) < \tau_{\text{ref}}
@@ -156,12 +159,12 @@ By definition, $\overline{\text{SIR}} \in [0,1]$. A value near 1 indicates that 
 
 The semantic relevance scorer implements the transition from a static oracle $f(\mathcal{G}, \mathcal{E}_q)$ to a context-aware oracle $f(\mathcal{G}, \mathcal{E}_q, q, y_{<t})$. It takes a candidate KG path $p$, the question $q$, and the partial generation $y_{<t}$, and returns a relevance score in $[0,1]$.
 
-A path $p = (e_0, r_1, e_1, \ldots, r_L, e_L)$ is first serialised into a text sequence:
+A path $p = (e_0, r_1, e_1, \ldots, r_L, e_L)$ is first serialized into a text sequence:
 \begin{equation}
   \text{str}(p) = e_0 \;\|\; r_1 \;\|\; e_1 \;\|\; \cdots \;\|\; r_L \;\|\; e_L
   \label{eq:pathstr}
 \end{equation}
-where entity IDs are mapped to readable Freebase names when available, and relation strings are normalised (e.g., underscore replacement). The query-side context is serialised as:
+where entity IDs are mapped to readable Freebase names when available, and relation strings are normalized (e.g., underscore replacement). The query-side context is serialized as:
 \begin{equation}
   \text{query}(q, y_{<t}) = q \;\|\; \texttt{[SEP]} \;\|\;
   \text{str}(y_{<t})
@@ -219,13 +222,13 @@ A candidate path is admitted into $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ if 
 
     \draw[arrow] (cos) -- node[right, font=\footnotesize] {Score $s$} (thresh);
   \end{tikzpicture}
-  \caption[Semantic relevance scoring mechanism]{The semantic relevance scoring mechanism. Candidate knowledge graph paths and the dynamically updating query‑context prefix sequence are independently routed to dense representations by a tuned encoder. Deterministic binary admission implements an aggressive exclusion gate parameterised by $\tau$, bounding DCA‑Trie's contextual relevance scope.}
+  \caption[Semantic relevance scoring mechanism]{The semantic relevance scoring mechanism.}
   \label{fig:scorer}
 \end{figure}
 
 \subsection{Threshold Selection}
 
-The admission threshold $\tau$ is tuned on a separate 100-question WebQSP validation split. Selection prioritises Condition~P (low false negatives) while still maximising trie reduction relative to GCR. We sweep $\tau \in [0.1, 0.6]$ with step size 0.05 and select the highest value that satisfies $\text{FNR} < 0.05$. Thresholds are tuned independently for v1 and v2, since v2 uses step-wise context updates and therefore follows a different pruning dynamic.
+The admission threshold $\tau$ is tuned on a separate 100-question WebQSP validation split. Selection prioritizes Condition~P (low false negatives) while still maximizing trie reduction relative to GCR. We sweep $\tau \in [0.1, 0.6]$ with step size 0.05 and select the highest value that satisfies $\text{FNR} < 0.05$. Thresholds are tuned independently for v1 and v2, since v2 uses step-wise context updates and therefore follows a different pruning dynamic.
 
 \subsection{Encoder Caching}
 
@@ -259,7 +262,7 @@ Methodologically, this changes the oracle from $f(\mathcal{G}, \mathcal{E}_q)$ t
 
     \node[box, below=0.95cm of bfs] (paths) {Candidate Paths $\mathcal{P}$};
 
-    \node[box, fill=teal!10, below=1.45cm of paths, xshift=-1.7cm, text width=8.2cm, align=left, minimum height=3.0cm] (filter) {\centering\textbf{Semantic Filter Loop}\\[2pt]
+    \node[box, fill=teal!10, below=1.45cm of paths, xshift=-2.2cm, text width=8.2cm, align=left, minimum height=3.0cm] (filter) {\centering\textbf{Semantic Filter Loop}\\[2pt]
       \raggedright For each $p \in \mathcal{P}$:\\
       1. Compute $\mathbf{v}_p \leftarrow E(\text{str}(p))$\\
       2. Compute $s_p \leftarrow \cos(\mathbf{u}, \mathbf{v}_p)$\\
@@ -276,7 +279,7 @@ Methodologically, this changes the oracle from $f(\mathcal{G}, \mathcal{E}_q)$ t
 
     \draw[arrow] (filter) -- node[right, font=\footnotesize] {$\mathcal{P}_{\text{filtered}}$} (trie);
   \end{tikzpicture}
-  \caption[Static semantic filtering pipeline (DCA‑Trie v1)]{Static Semantic Filtering pipeline for DCA‑Trie v1. Each candidate structural path is evaluated against the question vector prior to generation, caching only the subset meeting the semantic threshold.}
+  \caption[Static semantic filtering pipeline (DCA‑Trie v1)]{Static semantic filtering pipeline for DCA‑Trie v1. }
   \label{fig:v1}
 \end{figure}
 
@@ -285,7 +288,7 @@ Methodologically, this changes the oracle from $f(\mathcal{G}, \mathcal{E}_q)$ t
 \begin{figure}[H]
   \centering
   \begin{algorithm}[H]
-    \caption{DCA‑Trie v1 — Static Semantic Filtering at Construction Time}
+    \caption{DCA‑Trie v1: Static Semantic Filtering at Construction Time}
     \label{alg:v1}
     \begin{algorithmic}[1]
       \Require Knowledge graph $\mathcal{G}$; question entities $\mathcal{E}_q$;
@@ -327,13 +330,23 @@ Methodologically, this changes the oracle from $f(\mathcal{G}, \mathcal{E}_q)$ t
       \EndFor
     \end{algorithmic}
   \end{algorithm}
+  \caption[Algorithm for DCA‑Trie v1]{DCA‑Trie v1 algorithm.}
+  \label{fig:alg:v1}
 \end{figure}
 
 \subsection{Algorithm Description}
 
-Algorithm~\ref{alg:v1} operates in two distinct phases. In the offline phase, it enumerates all structurally valid paths from the question entities up to depth $L$, computes a semantic relevance score for each path against the question representation, and retains only paths with score at least $\tau$. These retained paths are compiled into a filtered trie $\mathcal{T}^{\text{v1}}$. In the online phase, decoding proceeds exactly as in GCR: at each token step, the decoder queries $\mathcal{T}^{\text{v1}}$ for valid continuations, applies a binary mask to logits, and runs constrained beam search over the masked distribution.
+Algorithm~\ref{alg:v1} operates in two distinct phases: an offline filtering phase and an online generation phase. To clarify how the mechanism works in practice, the process unfolds in the following sequence:
 
-The practical effect is that semantic selectivity is introduced once, before generation starts, while generation-time control remains simple and deterministic. This design keeps decoding behaviour stable and makes the contribution easy to isolate experimentally: changes in search efficiency come from a smaller admissible path set, not from a different decoding routine.
+\begin{enumerate}
+  \item \textbf{Precompute the Query State:} The system first embeds the raw question into a dense vector space. At this construction stage, the generation prefix is empty.
+  \item \textbf{Enumerate the Structural Space:} Using standard breadth-first search (BFS), the system maps out every possible graph path originating from the question entities up to a maximum depth $L$. This mirrors the baseline GCR approach.
+  \item \textbf{Score and Prune:} Here, the semantic intervention occurs. The system measures the cosine similarity between the question embedding and every enumerated path. Any path scoring below the threshold $\tau$ is discarded as contextually irrelevant.
+  \item \textbf{Construct the Static Trie:} The surviving paths are compiled into a static prefix tree ($\mathcal{T}^{\text{v1}}$). This tree maps out the complete, semantically pruned valid search space.
+  \item \textbf{Autoregressive Decoding (Online):} During generation, the LLM queries this pre-built trie at every token step. The trie returns a binary mask forcing the model to only output tokens that advance along the pre-approved paths.
+\end{enumerate}
+
+What this demonstrates is that semantic selectivity happens exactly once. By pruning the search space entirely before generation begins, the decoding process itself remains fast, stable, and easily comparable to existing baselines.
 
 \subsection{Complexity Analysis}
 
@@ -376,11 +389,11 @@ where $\mathcal{T}_{\mathcal{G}}$ is the set of graph triplets. The core differe
 
     \node[box, below=1cm of trie] (lookup) {Lookup Valid\\Tokens $\mathcal{V}_t$};
 
-    \node[box, fill=purple!10, below=1cm of $(llm)!0.5!(lookup)$] (mask) {Logit Masking\\(Eq 2.2)};
+    \node[box, fill=purple!10, below=1.5cm of $(llm)!0.5!(lookup)$] (mask) {Logit Masking\\(Eq 2.2)};
 
     \node[box, below=1cm of mask] (commit) {Commit Entity $e_t$};
 
-    \node[box, fill=teal!10, text width=7cm, right=1.5cm of mask] (expand) {\textbf{Dynamic Semantic Expansion}\\1. $\mathbf{u}_t \leftarrow E(\text{query}(q, y_{\leq t}))$\\2. For each $(e_t, r, e') \in \mathcal{T}_{\mathcal{G}}$:\\ \quad \quad if $\cos(\mathbf{u}_t, \mathbf{v}_{e'}) \geq \tau$,\\ \quad \quad add $(e_t, r, e')$ to $\mathcal{T}_t$};
+    \node[box, fill=teal!10, text width=7cm, right=2.5cm of mask] (expand) {\textbf{Dynamic Semantic Expansion}\\1. $\mathbf{u}_t \leftarrow E(\text{query}(q, y_{\leq t}))$\\2. For each $(e_t, r, e') \in \mathcal{T}_{\mathcal{G}}$:\\ \quad \quad if $\cos(\mathbf{u}_t, \mathbf{v}_{e'}) \geq \tau$,\\ \quad \quad add $(e_t, r, e')$ to $\mathcal{T}_t$};
 
     \draw[arrow] (step) -- (llm);
     \draw[arrow] (trie) -- (lookup);
@@ -391,7 +404,7 @@ where $\mathcal{T}_{\mathcal{G}}$ is the set of graph triplets. The core differe
     \draw[arrow] (commit) -| node[pos=0.25, below, font=\footnotesize] {Trigger Expansion} (expand);
     \draw[arrow] (expand) |- node[pos=0.75, above, font=\footnotesize] {Update to $\mathcal{T}_t$} (trie);
   \end{tikzpicture}
-  \caption[Step-wise dynamic expansion workflow (DCA‑Trie v2)]{Step‑Wise Dynamic Expansion workflow for DCA‑Trie v2. After each generated entity is committed during beam search, the framework fetches local structural neighbours of the new entity from Freebase and semantically filters them against the updated intent context, incrementally expanding the valid constraint set only along mathematically relevant pathways.}
+  \caption[Step-wise dynamic expansion workflow (DCA‑Trie v2)]{Step‑Wise Dynamic Expansion workflow for DCA‑Trie v2.}
   \label{fig:v2}
 \end{figure}
 
@@ -400,7 +413,7 @@ where $\mathcal{T}_{\mathcal{G}}$ is the set of graph triplets. The core differe
 \begin{figure}[H]
   \centering
   \begin{algorithm}[H]
-    \caption{DCA‑Trie v2 — Step‑Wise Semantic Expansion}
+    \caption{DCA‑Trie v2: Step‑Wise Semantic Expansion}
     \label{alg:v2}
     \begin{algorithmic}[1]
       \Require Knowledge graph $\mathcal{G}$; question entities $\mathcal{E}_q$;
@@ -408,7 +421,7 @@ where $\mathcal{T}_{\mathcal{G}}$ is the set of graph triplets. The core differe
       LLM with vocabulary $\mathcal{V}$
       \Ensure Generated reasoning chain $y_1 \ldots y_T$
 
-      \State \textbf{Initialise trie} with entity nodes for $\mathcal{E}_q$:
+      \State \textbf{Initialize trie} with entity nodes for $\mathcal{E}_q$:
       $\mathcal{T}_0 \gets \{e_q : e_q \in \mathcal{E}_q\}$
 
       \State \textbf{Precompute query embedding:}
@@ -443,13 +456,23 @@ where $\mathcal{T}_{\mathcal{G}}$ is the set of graph triplets. The core differe
       \State \Return $y_1 \ldots y_T$
     \end{algorithmic}
   \end{algorithm}
+  \caption[Algorithm for DCA‑Trie v2]{DCA‑Trie v2 algorithm.}
+  \label{fig:alg:v2}
 \end{figure}
 
 \subsection{Algorithm Description}
 
-Algorithm~\ref{alg:v2} keeps constrained decoding and trie lookup at every step, but adds a conditional expansion stage after entity commitments. At step $t$, the decoder first retrieves valid tokens from the current trie and generates $y_t$ under a masked distribution. If $y_t$ is an entity token, the method updates the query-context embedding with the new prefix, scores outgoing structural neighbours of that entity, and inserts only neighbours with score at least $\tau$ into the trie. If $y_t$ is not an entity token, the trie remains unchanged for that step.
+Unlike the static approach in v1, Algorithm~\ref{alg:v2} interleaves generation and semantic filtering. To navigate how the search space dynamically evolves, the process steps through the following sequence:
 
-In effect, the admissible search space evolves with the model's current reasoning state rather than staying fixed from the start. This makes v2 more adaptive than v1: semantic filtering is applied repeatedly during generation, so the oracle can follow the trajectory of the partial chain while preserving the same graph-validity constraints.
+\begin{enumerate}
+  \item \textbf{Initialize a Minimal State:} The system begins with a bare trie containing only the root question entities, alongside a baseline query embedding.
+  \item \textbf{Generate under Current Constraints:} At any step $t$, the LLM generates a new token strictly restricted by the current physical boundaries of the trie.
+  \item \textbf{Check for Entity Commitment:} The algorithm branches depending on what the LLM just generated. If it output an intermediate relation token, the trie remains unchanged and decoding continues. However, if the LLM finishes generating an entity token, an expansion phase triggers.
+  \item \textbf{Update the Context:} When an entity is committed, the system recalculates the query embedding. This new embedding fuses the original question with the exact reasoning path the LLM just generated, making the context highly specific to the current state.
+  \item \textbf{Dynamically Expand:} The system retrieves all structurally valid neighbours of the newly committed entity from the master knowledge graph. It scores these candidates against the updated context embedding, discarding the irrelevant ones. The survivors are then spliced into the trie to allow valid future generation.
+\end{enumerate}
+
+The implication here is a highly adaptive oracle. Instead of forcing the LLM to choose from a massive, pre-calculated net of paths, the system selectively builds the net just one step ahead of the model's current reasoning state, following its trajectory while maintaining graph validity.
 
 \subsection{Complexity Analysis}
 
@@ -520,9 +543,9 @@ All experiments are run on a single NVIDIA A100 (40GB). Llama‑3.1‑8B inferen
 
 This study has clear scope boundaries that frame interpretation of the Chapter~4 results:
 
-\textbf{Single KG and domain:} Experiments are limited to Freebase-based KGQA. Generalisation to other KGs (e.g., Wikidata and ConceptNet) remains future work.
+\textbf{Single KG and domain:} Experiments are limited to Freebase-based KGQA. Generalization to other KGs (e.g., Wikidata and ConceptNet) remains future work.
 
-\textbf{No model fine‑tuning:} The Llama‑3.1‑8B backbone is not fine-tuned. Observed improvements therefore reflect changes in constraint-oracle design rather than parameter adaptation.
+\textbf{No model fine-tuning:} The Llama‑3.1‑8B backbone is not fine-tuned. Observed improvements therefore reflect changes in constraint-oracle design rather than parameter adaptation.
 
 \textbf{Empirical faithfulness evidence:} Condition~F is assessed empirically by checking generated paths against KG triplets, following established practice in prior work \citep{luo2025-graph-constrained-reasoning, li2024-decoding-on-graphs}. This evidence is interpreted under the same implementation assumptions on valid-token masking and tokenizer alignment.
 
@@ -530,4 +553,4 @@ This study has clear scope boundaries that frame interpretation of the Chapter~4
 
 \textbf{False negative risk:} Even under Condition~P, semantic filtering can remove valid paths, particularly when lexical form and graph semantics diverge. This trade-off is analysed explicitly in Chapter~4.
 
-\textbf{Latency:} Semantic scoring introduces additional compute overhead relative to GCR. Wall-clock latency is therefore reported, but production deployment optimisation is outside the scope of this thesis.
+\textbf{Latency:} Semantic scoring introduces additional compute overhead relative to GCR. Wall-clock latency is therefore reported, but production deployment optimization is outside the scope of this thesis.

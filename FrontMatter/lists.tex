@@ -2,8 +2,12 @@
 
 %--- Table of Contents ---
 \phantomsection
+\vspace*{60pt}
 \addcontentsline{toc}{chapter}{TABLE OF CONTENTS}
-\renewcommand{\contentsname}{\large\vspace{15pt} TABLE OF CONTENTS}
+\renewcommand{\contentsname}{\hfill\large\bfseries TABLE OF CONTENTS\hfill}
+\vspace{-5ex}
+\noindent\textbf{Contents}\hfill\textbf{Page}
+\vspace*{-4cm}
 \tableofcontents
 
 \pagebreak
@@ -15,8 +19,8 @@
 \addcontentsline{toc}{chapter}{LIST OF FIGURES}
 \phantomsection
 \vspace{-4ex}
-\textbf{Figure} \hspace{0.3\textwidth} \textbf{Title} \hspace{0.5\textwidth} \textbf{Page}
-\vspace{-6ex}
+\noindent\textbf{Figure}\hfill\textbf{Title}\hfill\textbf{Page}
+\vspace{-3ex}
 \@starttoc{lof}
 \makeatother
 \clearpage
@@ -34,17 +38,18 @@
 \addcontentsline{toc}{chapter}{LIST OF TABLES}
 \phantomsection
 \vspace{-4ex}
-\textbf{Table} \hspace{0.3\textwidth} \textbf{Title} \hspace{0.5\textwidth} \textbf{Page}
-\vspace{-6ex}
+\noindent\textbf{Table}\hfill\textbf{Title}\hfill\textbf{Page}
+\vspace{0.2cm}
 \@starttoc{lot}
 \makeatother
 \clearpage
 
 %--- List of Abbreviations ---
 % Add or remove rows as needed. Format: \textbf{ABBR} & \hspace{3cm}\qquad Full form \\
-\chapter*{\large\bfseries\centering\vspace{15pt} LIST OF ABBREVIATIONS}
+\chapter*{\large\centering\vspace{15pt}LIST OF ABBREVIATIONS}
 \addcontentsline{toc}{chapter}{LIST OF ABBREVIATIONS}
 \vspace{-4ex}
+\vspace{2ex}
 \begin{abbreviations}{lr}
 
     \textbf{DCA-Trie} & \hspace{3cm}\qquad Dynamic Context-Aware Trie \\

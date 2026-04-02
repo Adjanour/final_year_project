@@ -10,7 +10,7 @@ A description of every file and folder in the project, and what to edit where.
 
 The **entry point** for the build. It should contain almost nothing except:
 
-- The `\documentclass[...]{TemplateClassFile}` declaration
+- The `\documentclass[...]{UMaT_Undergrauate_Report_Template_Configurations}` declaration
 - `\input{preamble}`
 - `\include{...}` calls for front matter and chapters
 - `\printbibliography`
@@ -45,15 +45,17 @@ Sections inside the file (clearly labelled with `%===` banners):
 BibTeX bibliography database. Add entries here.
 See [customisation.md](customisation.md#adding-bibliography-entries) for details.
 
+### `UMaT_Undergrauate_Report_Template_Configurations.cls`
+
+The root entrypoint for the official UMaT undergraduate report class name.
+It delegates to the local implementation so `thesis.tex` matches the official
+template naming.
+
 ### `TemplateClassFile.cls`
 
-The document class. Derived from the MastersDoctoralThesis v1.6 template.
-**Do not edit** — it defines the `\thesistitle`, `\author`, front-matter
-environments, and page styling that the rest of the project depends on.
-
-### `example.bib`
-
-Unused sample bibliography file from the original template. Safe to delete.
+The local implementation behind the official class alias.
+It defines the `\thesistitle`, `\author`, front-matter environments, and page
+styling that the rest of the project depends on.
 
 ---
 

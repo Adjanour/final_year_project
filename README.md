@@ -2,8 +2,8 @@
 
 A structured LaTeX template for undergraduate project reports at the
 **University of Mines and Technology, Tarkwa (UMaT)**, based on the
-MastersDoctoralThesis v1.6 class (LaTeXTemplates.com), adapted for the
-Faculty of Computing and Mathematical Sciences format.
+official `UMaT_BSc_Project_Report_Template`, while keeping this repo's split
+front matter / chapter structure for easier editing.
 
 ---
 
@@ -46,7 +46,9 @@ from [docs/building.md](docs/building.md) when needed.
 thesis.tex              Root driver — document class + \include list only
 preamble.tex            All packages, formatting, and thesis metadata
 references.bib          Bibliography database (BibTeX format)
-TemplateClassFile.cls   Document class (do not edit)
+UMaT_Undergrauate_Report_Template_Configurations.cls
+                        Root entrypoint for the official UMaT class
+TemplateClassFile.cls   Local implementation behind the official class alias
 
 FrontMatter/
   titlepage.tex         Title page

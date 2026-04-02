@@ -4,12 +4,14 @@
 %=== Page Layout =================================================================
 
 \usepackage[a4paper, top=1in, bottom=1in, left=1.2in, right=1in, head=21.75pt]{geometry}
+\setlength{\parskip}{1em}
+\setlength{\parindent}{0pt}
 
 %=== Font & Encoding =============================================================
 
 \usepackage[utf8]{inputenc}   % Accept UTF-8 source characters
 \usepackage[T1]{fontenc}      % Use 8-bit output encoding (proper hyphenation for accented chars)
-\usepackage{times}            % Times New Roman font
+\usepackage{newtxtext,newtxmath} % Official template Times-like text and math fonts
 
 %=== Abstract Fix ================================================================
 % The base class leaves a trailing \null after the abstract env, creating an extra
@@ -29,10 +31,20 @@
     uniquename=false,
     maxcitenames=2,        % "Author et al." when > 2 authors in a citation
     maxbibnames=99,        % Show all authors in the reference list
-    giveninits=true        % Use initials for given names
+    giveninits=true,
+    dashed=false
 ]{biblatex}
 
 \DeclareNameAlias{sortname}{family-given}   % Sort bibliography by last name
+\DeclareDelimFormat{nameyeardelim}{\addcomma\space}
+\renewbibmacro*{date+extrayear}{%
+    \setunit{\addcomma\space}%
+    \printtext[parens]{%
+        \printfield{labelyear}%
+        \printfield{extrayear}}}
+\DeclareFieldFormat{sentencecase}{#1}
+\renewcommand{\newunitpunct}{\addcomma\space}
+\renewbibmacro{in:}{}
 \addbibresource{references.bib}
 
 % Italicise "et al." in citations
@@ -87,7 +99,6 @@
 %=== Mathematics =================================================================
 
 \usepackage{amsmath}
-\usepackage{amssymb}
 \DeclareMathOperator*{\argmax}{arg\,max}
 
 %=== Lists =======================================================================
@@ -115,12 +126,16 @@
 \renewcommand{\cftfigleader}{\cftdotfill{\cftsecdotsep}}
 \renewcommand{\cftdotsep}{\cftnodots}
 \setlength{\cftfigindent}{0pt}
+\setlength{\cftbeforefigskip}{4pt}
 \renewcommand{\cftfigaftersnumb}{\quad}
+\setlength{\cftfignumwidth}{10em}
 
 % Table list: no indentation
 \renewcommand{\cfttabindent}{0pt}
-\setlength{\cftbeforetabskip}{6pt}
-\setlength{\cfttabnumwidth}{5em}
+\setlength{\cftbeforetabskip}{4pt}
+\setlength{\cfttabnumwidth}{12em}
+\setlength{\cftsecindent}{0pt}
+\setlength{\cftsubsecindent}{2.2em}
 
 % Show "CHAPTER X" prefix next to each chapter entry in the ToC
 \renewcommand{\cftchappresnum}{CHAPTER\space}
@@ -153,7 +168,7 @@
 
 \thesistitle{Dynamic Context-Aware Tries for Knowledge Graph-Constrained Large Language Model Generation}                                    % \ttitle
 \author{Bernard Kirk Adjanor Katamanso-FOE.41.008.088.22\\Amonor Erica-FOE.41.008.030.22\\Joseph Osei Nyarko-FOE.41.008.113.22\\Jessica Afua Etornam Nsafoah-FOE.41.008.107.22}                                    % \authorname
-\supervisor{Dr ERIC AFFUM}                                     % \supname
+\supervisor{DR ERIC AFFUM}                                     % \supname
 \university{UNIVERSITY OF MINES AND TECHNOLOGY}        % \univname
 \department{DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING}    % \deptname
 \faculty{FACULTY OF COMPUTING AND MATHEMATICAL SCIENCES}       % \facname

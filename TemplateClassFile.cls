@@ -239,7 +239,7 @@
 \newcommand{\HRule}{\rule{.9\linewidth}{.6pt}} % New command to make the lines in the title page
 %\newcommand{\decoRule}{\rule{.8\textwidth}{.4pt}} % New command for a rule to be used under figures
 
-\setcounter{tocdepth}{4} % The depth to which the document sections are printed to the table of contents
+\setcounter{tocdepth}{2} % Match the official undergraduate template ToC depth
 \ProvideDocumentCommand{\addchaptertocentry}{ m }{%
 	\addcontentsline{toc}{chapter}{#1}%
 }
@@ -326,7 +326,7 @@
 %	ABBREVIATIONS PAGE DESIGN
 %----------------------------------------------------------------------------------------
 
-\newcommand{\abbrevname}{LIST OF ABBREVIATIONS}
+\newcommand{\abbrevname}{\large LIST OF ABBREVIATIONS}
 \providecaptionname{english,british,american}{\abbrevname}{LIST OF ABBREVIATIONS}
 \providecaptionname{ngerman,german,austrian,naustrian}{\abbrevname}{Abk\"urzungsverzeichnis}
 \NewDocumentEnvironment{abbreviations}{ m }{%
@@ -346,7 +346,7 @@
 
 \usepackage{xcolor}
 \colorlet{mdtRed}{red!50!black}
-\newcommand{\abstractname}{ABSTRACT}
+\newcommand{\abstractname}{\large ABSTRACT}
 \providecaptionname{american,australian,british,canadian,english,newzealand,UKenglish,USenglish} {\abstractname}{ABSTRACT} % Acknowledgement text for English countries
 \providecaptionname{german,ngerman,austrian,naustrian}{\abstractname}{Danksagung} % Acknowledgement text for Germanic countries
 
@@ -377,8 +377,8 @@
 
 \usepackage{xcolor}
 \colorlet{mdtRed}{red!50!black}
-\newcommand{\acknowledgementname}{ACKNOWLEDGMENTS}
-\providecaptionname{american,australian,british,canadian,english,newzealand,UKenglish,USenglish} {\acknowledgementname}{ACKNOWLEDGMENTS} % Acknowledgement text for English countries
+\newcommand{\acknowledgementname}{\large ACKNOWLEDGEMENTS}
+\providecaptionname{american,australian,british,canadian,english,newzealand,UKenglish,USenglish} {\acknowledgementname}{ACKNOWLEDGEMENTS} % Acknowledgement text for English countries
 \providecaptionname{german,ngerman,austrian,naustrian}{\acknowledgementname}{Danksagung} % Acknowledgement text for Germanic countries
 
 \ifbool{consistentlayout}{
@@ -407,22 +407,22 @@
 
 \usepackage{xcolor}
 \colorlet{mdtRed}{red!50!black}
-\newcommand{\dedicationname}{DEDICATION}
+\newcommand{\dedicationname}{\large DEDICATION}
 \providecaptionname{american,australian,british,canadian,english,newzealand,UKenglish,USenglish} {\dedicationname}{DEDICATION} % Acknowledgement text for English countries
 \providecaptionname{german,ngerman,austrian,naustrian}{\dedicationname}{Danksagung} % Acknowledgement text for Germanic countries
 
 \ifbool{consistentlayout}{
 	\DeclareDocumentEnvironment{dedication}{}{%
 		%\tttypeout{\dedicationname}
-		\addchap*{\dedicationname}
+		% The official undergraduate template leaves the dedication body unheaded.
 	}
 }
 {
 	\DeclareDocumentEnvironment{dedication}{}{%
 		\checktoopen
-		\tttypeout{\dedicationname}
+		%\tttypeout{\dedicationname}
 		\thispagestyle{plain}
-		\begin{center}{\Large\bf{\dedicationname}\par}\end{center}
+		%\begin{center}{\Large\bf{\dedicationname}\par}\end{center}
 	}
 	{
 		\vfil\vfil\null
@@ -437,7 +437,7 @@
 %	DECLARATION PAGE DESIGN
 %----------------------------------------------------------------------------------------
 
-\newcommand{\authorshipname}{DECLARATION}
+\newcommand{\authorshipname}{\large DECLARATION}
 \providecaptionname{american,australian,british,canadian,english,newzealand,UKenglish,USenglish}{\authorshipname}{DECLARATION} % Declaration of Authorship text for English countries
 \providecaptionname{german,ngerman,austrian,naustrian}{\authorshipname}{Eidesstattliche Erkl\"arung} % Declaration of Authorship text for Germanic countries
 
@@ -460,7 +460,7 @@
 %	PHYSICAL CONSTANTS PAGE DESIGN
 %----------------------------------------------------------------------------------------
 
-\newcommand{\constantsname}{PHYSICAL CONSTANTS}
+\newcommand{\constantsname}{\large PHYSICAL CONSTANTS}
 \providecaptionname{english,british,american}{\constantsname}{PHYSICAL CONSTANTS}
 \providecaptionname{ngerman,german,austrian,naustrian}{\constantsname}{Physikalische Konstanten}
 
@@ -478,7 +478,7 @@
 %	SYMBOLS PAGE DESIGN
 %----------------------------------------------------------------------------------------
 
-\newcommand{\symbolsname}{LIST OF SYMBOLS}
+\newcommand{\symbolsname}{\large LIST OF SYMBOLS}
 \providecaptionname{english,british,american}{\symbolsname}{LIST OF SYMBOLS}
 \providecaptionname{ngerman,german,austrian,naustrian}{\symbolsname}{Symbolverzeichnis}
 
