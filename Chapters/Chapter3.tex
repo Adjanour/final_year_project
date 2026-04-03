@@ -172,7 +172,7 @@ where entity IDs are mapped to readable Freebase names when available, and relat
 \end{equation}
 where $\text{str}(y_{<t})$ is the detokenised generation prefix.
 
-Both $\text{str}(p)$ and $\text{query}(q, y_{<t})$ are encoded using \texttt{all-MiniLM-L6-v2} \citep{reimers2019sentence} into 384-dimensional vectors. Relevance is computed as cosine similarity:
+Both $\text{str}(p)$ and $\text{query}(q, y_{<t})$ are encoded using \texttt{all-MiniLM-L6-v2} \citep{reimers2019sbert} into 384-dimensional vectors. Relevance is computed as cosine similarity:
 \begin{equation}
   \text{score}(p,\, q,\, y_{<t}) = \cos\!\bigl(
   E\!\left(\text{str}(p)\right),\;\;
@@ -508,9 +508,9 @@ To ensure fair comparison, all settings use the same Llama‑3.1‑8B backbone, 
 
 Evaluation is conducted on two standard Freebase-based KGQA datasets \citep{bollacker2008freebase}:
 
-\textbf{WebQSP} \citep{yih2016value}: 4,737 questions, mostly requiring 1--2 hops. The standard test set is used for evaluation. A separate disjoint set of 100 questions is used only for threshold calibration.
+\textbf{WebQSP} \citep{yih2016websqp}: 4,737 questions, mostly requiring 1--2 hops. The standard test set is used for evaluation. A separate disjoint set of 100 questions is used only for threshold calibration.
 
-\textbf{ComplexWebQuestions (CWQ)} \citep{talmor2018web}: 34,689 questions with higher compositional complexity and hop depths up to 4. This dataset is used in full for evaluation with no overlap with the calibration split.
+\textbf{ComplexWebQuestions (CWQ)} \citep{talmor2018cwq}: 34,689 questions with higher compositional complexity and hop depths up to 4. This dataset is used in full for evaluation with no overlap with the calibration split.
 
 \subsection{Evaluation Metrics}
 
@@ -534,7 +534,7 @@ All major metrics (except binary structural faithfulness) are also reported by h
 
 \subsection{Experimental Configuration}
 
-All experiments are run on a single NVIDIA A100 (40GB). Llama‑3.1‑8B inference uses 16-bit precision through HuggingFace Transformers \citep{wolf2020transformers}. Constrained systems use beam width $k=5$, while the unconstrained CoT baseline uses $k=1$ to match the original GCR setup. The \texttt{all-MiniLM-L6-v2} encoder is served through `sentence-transformers` \citep{reimers2019sentence} on CPU to avoid GPU contention with LLM decoding. Maximum generation length is set to $3L+2$, with $L=2$ for WebQSP and $L=4$ for CWQ.
+All experiments are run on a single NVIDIA A100 (40GB). Llama‑3.1‑8B inference uses 16-bit precision through HuggingFace Transformers \citep{wolf2020transformers}. Constrained systems use beam width $k=5$, while the unconstrained CoT baseline uses $k=1$ to match the original GCR setup. The \texttt{all-MiniLM-L6-v2} encoder is served through `sentence-transformers` \citep{reimers2019sbert} on CPU to avoid GPU contention with LLM decoding. Maximum generation length is set to $3L+2$, with $L=2$ for WebQSP and $L=4$ for CWQ.
 
 % -----------------------------------------------------------------------------
 \section{Scope Boundaries and Anticipated Limitations}

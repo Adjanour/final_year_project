@@ -29,10 +29,15 @@
     style=authoryear,
     natbib=true,           % Enable \citep / \citet commands
     uniquename=false,
-    maxcitenames=2,        % "Author et al." when > 2 authors in a citation
+    maxcitenames=3,        % "Author et al." when > 3 authors in a citation
     maxbibnames=99,        % Show all authors in the reference list
     giveninits=true,
-    dashed=false
+    dashed=false,
+    sorting=nyt,
+    url=false,
+    doi=false,
+    isbn=false,
+    eprint=false
 ]{biblatex}
 
 \DeclareNameAlias{sortname}{family-given}   % Sort bibliography by last name
@@ -45,6 +50,17 @@
 \DeclareFieldFormat{sentencecase}{#1}
 \renewcommand{\newunitpunct}{\addcomma\space}
 \renewbibmacro{in:}{}
+\DeclareFieldFormat[
+    article,
+    inbook,
+    incollection,
+    inproceedings,
+    misc,
+    online,
+    report,
+    thesis,
+    unpublished
+]{title}{\textquotedblleft#1\textquotedblright}
 \addbibresource{references.bib}
 
 % Italicise "et al." in citations
@@ -166,7 +182,7 @@
 % These values populate the title page, PDF properties, and other auto-filled
 % fields throughout the document. Print them anywhere with the command shown.
 
-\thesistitle{Dynamic Context-Aware Tries for Knowledge Graph-Constrained Large Language Model Generation}                                    % \ttitle
+\thesistitle{DYNAMIC CONTEXT-AWARE TRIES FOR KNOWLEDGE GRAPH-CONSTRAINED LARGE LANGUAGE MODEL GENERATION}                                    % \ttitle
 \author{Bernard Kirk Adjanor Katamanso-FOE.41.008.088.22\\Amonor Erica-FOE.41.008.030.22\\Joseph Osei Nyarko-FOE.41.008.113.22\\Jessica Afua Etornam Nsafoah-FOE.41.008.107.22}                                    % \authorname
 \supervisor{DR ERIC AFFUM}                                     % \supname
 \university{UNIVERSITY OF MINES AND TECHNOLOGY}        % \univname

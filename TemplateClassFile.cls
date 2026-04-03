@@ -414,15 +414,16 @@
 \ifbool{consistentlayout}{
 	\DeclareDocumentEnvironment{dedication}{}{%
 		%\tttypeout{\dedicationname}
+		\addchap*{\dedicationname}
 		% The official undergraduate template leaves the dedication body unheaded.
 	}
 }
 {
 	\DeclareDocumentEnvironment{dedication}{}{%
 		\checktoopen
-		%\tttypeout{\dedicationname}
+		\tttypeout{\dedicationname}
 		\thispagestyle{plain}
-		%\begin{center}{\Large\bf{\dedicationname}\par}\end{center}
+		\begin{center}{\Large\bf{\dedicationname}\par}\end{center}
 	}
 	{
 		\vfil\vfil\null
