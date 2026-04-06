@@ -25,12 +25,13 @@
 \usepackage[autostyle=true]{csquotes}  % Language-aware quoting, required by biblatex
 
 \usepackage[
-    backend=bibtex,
+    backend=biber,
     style=authoryear,
     natbib=true,           % Enable \citep / \citet commands
     uniquename=false,
+    uniquelist=false,
     maxcitenames=3,        % "Author et al." when > 3 authors in a citation
-    maxbibnames=99,        % Show all authors in the reference list
+    maxbibnames=999,        % Show all authors in the reference list
     giveninits=true,
     dashed=false,
     sorting=nyt,
