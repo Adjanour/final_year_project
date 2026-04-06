@@ -19,7 +19,11 @@ To understand how knowledge graph constraints can be applied to language models,
 
 \subsection{Transformer Architecture}
 
-Modern LLMs are built upon the Transformer architecture, introduced by \citet{vaswani2017attention}. At its core, the Transformer relies on a self-attention mechanism that allows the model to dynamically weigh the importance of different tokens in an input sequence regardless of their positional distance. This represented a fundamental shift from prior recurrent architectures, enabling highly parallelized training and the capture of long-range dependencies. While the original framework proposed an encoder-decoder structure designed for translation tasks, the field has largely converged on decoder-only variants for text generation. In a decoder-only model, self-attention is causally masked, meaning that when computing the representation for a given token, the model can only attend to previous tokens and not future ones. This strictly left-to-right processing naturally aligns with the task of predicting the next word in a sequence. The Llama-3.1-8B model~\citep{dubey2024llama3} is a prominent example of this decoder-only, causally-masked transformer design, and has been adopted as the backbone in recent KG-constrained decoding work~\citep{luo2025-graph-constrained-reasoning}.
+Modern LLMs are built upon the Transformer architecture, introduced by \citet{vaswani2017attention}. At its core, the Transformer relies on a scaled dot-product self-attention mechanism that allows the model to dynamically weigh the importance of different tokens in an input sequence regardless of their positional distance. Formally, for a set of queries $Q$, keys $K$, and values $V$, the attention output is computed as:
+\begin{equation}
+  \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+\end{equation}
+where $d_k$ represents the dimensionality of the keys. This represented a fundamental shift from prior recurrent architectures, enabling highly parallelized training and the capture of long-range dependencies. While the original framework proposed an encoder-decoder structure designed for translation tasks, the field has largely converged on decoder-only variants for text generation. In a decoder-only model, self-attention is causally masked, meaning that when computing the representation for a given token, the model can only attend to previous tokens and not future ones. This strictly left-to-right processing naturally aligns with the task of predicting the next word in a sequence. The Llama-3.1-8B model~\citep{dubey2024llama3} is a prominent example of this decoder-only, causally-masked transformer design, and has been adopted as the backbone in recent KG-constrained decoding work~\citep{luo2025-graph-constrained-reasoning}.
 
 \subsection{Autoregressive Generation}
 
@@ -86,7 +90,13 @@ The common limitation of all prompting-based approaches, including few-shot, cha
 
 \subsection{Knowledge Graphs}
 
-A knowledge graph is a structured database of verified facts, represented as a set of directed, labelled triplets $(e, r, e')$ where $e, e' \in \mathcal{E}$ are entities and $r \in \mathcal{R}$ is a relation type. Each triplet encodes a single human-verified fact: for example, (\textit{Marie Curie}, \textit{award\_received}, \textit{Nobel\_Prize\_Physics}) or (\textit{Blue\_Hawaii}, \textit{film.film.featured\_film\_location}, \textit{Hawaii}). Freebase~\citep{bollacker2008freebase}, the knowledge graph underlying the evaluation benchmarks used in this work, encodes tens of millions of such triplets across geography, history, entertainment, and science, and has been widely adopted as the standard resource for KGQA research~\citep{yih2016websqp, talmor2018cwq}.
+A knowledge graph is a structured database of verified facts, represented as a set of directed, labelled triplets $(e, r, e')$ where $e, e' \in \mathcal{E}$ are entities and $r \in \mathcal{R}$ is a relation type. Each triplet encodes a single human-verified fact: for example, (\textit{Marie Curie}, \textit{award\_received}, \textit{Nobel\_Prize\_Physics}) or (\textit{Blue\_Hawaii}, \textit{film.film.featured\_film\_location}, \textit{Hawaii}). Figure~\ref{fig:kg_example} illustrates a simplified fragment of such a structure, demonstrating how these triplets interlink to form a broader network. Freebase~\citep{bollacker2008freebase}, the knowledge graph underlying the evaluation benchmarks used in this work, encodes tens of millions of such triplets across geography, history, entertainment, and science, and has been widely adopted as the standard resource for KGQA research~\citep{yih2016websqp, talmor2018cwq}.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\textwidth]{Figures/kg_example.png}
+  \caption[Simplified Example of a Knowledge Graph Fragment]{A simplified example of a knowledge graph fragment. Each triplet (edge) encodes a verified fact about the connected entities (nodes).}
+  \label{fig:kg_example}
+\end{figure}
 
 The critical distinction between a knowledge graph and an unstructured text corpus is that every triplet in the KG has been explicitly verified and is machine-readable in a deterministic, unambiguous form. This property makes KGs suitable as sources for hard constraints on generation: a candidate token can be verified against the KG via an exact lookup, rather than via probabilistic semantic matching against raw text. A multi-hop reasoning path of length $L$ through the KG is a sequence $(e_0, r_1, e_1, \ldots, r_L, e_L)$ in which each consecutive triplet $(e_{i-1}, r_i, e_i)$ is a verified member of $\mathcal{T}$~\citep{lan2022kgqa}.
 
@@ -192,7 +202,7 @@ When beam search is merged with a KG-Trie oracle (as visualized in Figure~\ref{f
       \node[above=0.3cm of root, font=\footnotesize\bfseries] {Beam Search Hypothesis Path};
     \end{tikzpicture}
   }
-  \caption{Visualization of KG-Trie constrained generation.}
+  \caption[Visualization of KG-Trie Constrained Generation]{Visualization of KG-Trie Constrained Generation.}
   \label{fig:kg_trie_search}
 \end{figure}
 
@@ -221,7 +231,7 @@ Despite their empirical improvements, all RAG approaches share a structural limi
     \begin{tikzpicture}[>=latex, font=\sffamily\footnotesize]
       % Styles
       \tikzstyle{block} = [draw, rectangle, rounded corners, minimum height=1cm, minimum width=2.5cm, align=center, fill=blue!5]
-      \tikzstyle{data} = [draw=none, fill=gray!10, rounded corners, inner sep=5pt, align=center]
+      \tikzstyle{data} = [draw, fill=gray!10, rounded corners, inner sep=5pt, align=center]
       \tikzstyle{redanno} = [text=red!80!black, font=\sffamily\footnotesize\bfseries, align=center]
       \tikzstyle{greenanno} = [text=green!60!black, font=\sffamily\footnotesize\bfseries, align=center]
 
@@ -229,28 +239,28 @@ Despite their empirical improvements, all RAG approaches share a structural limi
       \node[font=\sffamily\normalsize\bfseries] at (-3, 3.5) {RAG Pipeline};
       \node[data] (q_left) at (-3, 2.3) {Question $q$};
       \node[block, fill=orange!10] (ret) at (-5.5, 1.2) {Retriever \\ (Soft Context)};
-      \node[data] (ctx) at (-5.5, -0.2) {Retrieved \\ Subgraph/Text};
-      \node[block] (llm_left) at (-3, -1.5) {LLM \\ (Autoregressive)};
+      \node[data] (ctx) at (-5.5, -0.5) {Retrieved \\ Subgraph/Text};
+      \node[block] (llm_left) at (-3, -2) {LLM \\ (Autoregressive)};
 
       \draw[->, thick] (q_left) -| (ret);
       \draw[->, thick] (ret) -- (ctx);
       \draw[->, thick] (ctx) |- (llm_left);
       \draw[->, thick] (q_left) -- (llm_left);
 
-      \node[data] (out_left) at (-3, -3) {Any token $v \in \mathcal{V}$ \\ possible};
+      \node[data] (out_left) at (-3, -4) {Any token $v \in \mathcal{V}$ \\ possible};
       \draw[->, thick] (llm_left) -- (out_left);
 
-      \node[redanno] at (-3, -4.5) {Soft Influence:\\ Faithfulness Not Guaranteed};
+      % \node[redanno] at (-3, -4.5) {Soft Influence:\\ Faithfulness Not Guaranteed};
 
       % RIGHT PANEL: Constrained Decoding
       \node[font=\sffamily\normalsize\bfseries] at (4, 3.5) {Constrained Decoding Pipeline};
       \node[data] (q_right) at (4, 2.3) {Question $q$ \\ \& Prefix $y_{<t}$};
-      \node[block, fill=teal!10] (oracle) at (1.5, 1.2) {Constraint Oracle \\ (KG-Trie)};
-      \node[block] (llm_right) at (6.5, 1.2) {LLM \\ (Raw Logits)};
+      \node[block, fill=teal!10] (oracle) at (1.5, 1) {Constraint Oracle \\ (KG-Trie)};
+      \node[block] (llm_right) at (6.5, 1) {LLM \\ (Raw Logits)};
 
-      \node[data] (mask) at (1.5, -0.2) {Binary Mask \\ $\alpha_t \in \{0, -\infty\}$};
-      \node[data] (logits) at (6.5, -0.2) {Logits \\ $P(v \mid y_{<t}, x)$};
-      \node[draw, circle, inner sep=3pt, fill=blue!10] (mul) at (4, -0.2) {\textbf{+}};
+      \node[data] (mask) at (1.5, -0.9) {Binary Mask \\ $\alpha_t \in \{0, -\infty\}$};
+      \node[data] (logits) at (6.5, -0.9) {Logits \\ $P(v \mid y_{<t}, x)$};
+      \node[draw, circle, inner sep=3pt, fill=blue!10] (mul) at (4, -0.9) {\textbf{+}};
 
       \draw[->, thick] (q_right) -| (oracle);
       \draw[->, thick] (q_right) -| (llm_right);
@@ -259,18 +269,18 @@ Despite their empirical improvements, all RAG approaches share a structural limi
       \draw[->, thick] (mask) -- (mul);
       \draw[->, thick] (logits) -- (mul);
 
-      \node[data] (out_right) at (4, -3) {Only valid KG tokens \\ $v \in \mathcal{W}_{\text{val}}(t)$ possible};
+      \node[data] (out_right) at (4, -4) {Only valid KG tokens \\ $v \in \mathcal{W}_{\text{val}}(t)$ possible};
       \draw[->, thick] (mul) -- (4, -1.2) -- (out_right);
-      \node[anchor=west, font=\scriptsize] at (4.1, -1.5) {Masked Logits};
+      \node[anchor=west, font=\scriptsize] at (4.1, -1.8) {Masked Logits};
 
-      \node[greenanno] at (4, -4.5) {Hard Constraint:\\ Structural Faithfulness Guaranteed};
+      % \node[greenanno] at (4, -4.5) {Hard Constraint:\\ Structural Faithfulness Guaranteed};
 
       % Divider
       \draw[dashed, gray, thick] (-0.5, -5) -- (-0.5, 4);
 
     \end{tikzpicture}
   }
-  \caption{Architectural comparison of standard Retrieval-Augmented Generation (left) and KG-constrained decoding (right).}
+  \caption[Architectural Comparison of Standard RAG and KG-Constrained Decoding]{Architectural Comparison of Standard Retrieval-Augmented Generation (left) and KG-Constrained Decoding (right).}
   \label{fig:rag_vs_constrained}
 \end{figure}
 
@@ -418,7 +428,7 @@ Three specific gaps emerge from this review.
 
 \begin{table}[H]
   \centering
-  \caption{Summary of key related works and gap coverage.}
+  \caption[Summary of Key Related Works and Gap Coverage]{Summary of Key Related Works and Gap Coverage.}
   \label{tab:related_summary}
   \small
   \resizebox{\textwidth}{!}{%

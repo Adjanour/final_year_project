@@ -80,32 +80,155 @@ Because DCA-Trie explicitly targets the constraint oracle layer, its architectur
 
 Figure~\ref{fig:architecture} illustrates the layout, isolating the constraint oracle layer to highlight where the core semantic intervention occurs.
 
+% \begin{figure}[H]
+%   \centering
+%   \begin{tikzpicture}[
+%     node distance=0.6cm and 1.2cm,
+%     box/.style={draw, rectangle, rounded corners=4pt, minimum height=1.0cm,
+%         minimum width=3.5cm, align=center, thick, font=\small},
+%     contrib/.style={draw, rectangle, rounded corners=4pt, minimum height=1.0cm,
+%         minimum width=3.5cm, align=center, thick, font=\small,
+%         fill=teal!12, draw=teal!60!black},
+%     arrow/.style={-{Stealth[scale=1.1]}, thick},
+%     label/.style={font=\footnotesize\itshape, text=gray}
+%     ]
+%     \node[box]    (el)   {Entity Linking};
+%     \node[contrib, below=of el] (oracle) {Constraint Oracle\\(DCA‑Trie)};
+%     \node[box,    below=of oracle] (cd) {Constrained Decoding\\(Beam Search, $K$ beams)};
+%     \node[box,    below=of cd]    (ir) {Inductive Reasoning\\(GPT‑4o‑mini)};
+%     \node[box,    below=of ir]    (ans){Final Answer};
+
+%     \draw[arrow] (el)     -- node[label, right] {$\mathcal{E}_q$} (oracle);
+%     \draw[arrow] (oracle) -- node[label, right] {Mask $\mathbf{m}_t$} (cd);
+%     \draw[arrow] (cd)     -- node[label, right] {$K$ reasoning paths} (ir);
+%     \draw[arrow] (ir)     -- (ans);
+
+%     \node[label, right=0.3cm of oracle] {\textit{← Primary contribution}};
+%   \end{tikzpicture}
+%   \caption[DCA‑Trie system architecture]{DCA‑Trie system architecture. The constraint oracle layer (teal) is the primary contribution; all other layers are inherited from GCR~\citep{luo2025-graph-constrained-reasoning}.}
+%   \label{fig:architecture}
+% \end{figure}
+
 \begin{figure}[H]
   \centering
-  \begin{tikzpicture}[
-    node distance=0.6cm and 1.2cm,
-    box/.style={draw, rectangle, rounded corners=4pt, minimum height=1.0cm,
-        minimum width=3.5cm, align=center, thick, font=\small},
-    contrib/.style={draw, rectangle, rounded corners=4pt, minimum height=1.0cm,
-        minimum width=3.5cm, align=center, thick, font=\small,
-        fill=teal!12, draw=teal!60!black},
-    arrow/.style={-{Stealth[scale=1.1]}, thick},
-    label/.style={font=\footnotesize\itshape, text=gray}
-    ]
-    \node[box]    (el)   {Entity Linking};
-    \node[contrib, below=of el] (oracle) {Constraint Oracle\\(DCA‑Trie)};
-    \node[box,    below=of oracle] (cd) {Constrained Decoding\\(Beam Search, $K$ beams)};
-    \node[box,    below=of cd]    (ir) {Inductive Reasoning\\(GPT‑4o‑mini)};
-    \node[box,    below=of ir]    (ans){Final Answer};
+  \resizebox{\textwidth}{!}{%
+    \begin{tikzpicture}[
+        >=stealth, font=\sffamily\small,
+        kgnode/.style={draw=gray!70,fill=blue!8,rounded corners=3pt,inner sep=4pt,font=\sffamily\scriptsize,align=center},
+        pathbox/.style={draw=gray!50,fill=gray!5,rounded corners=4pt,inner sep=6pt,minimum width=5.0cm,align=left,font=\sffamily\scriptsize},
+        filtpath/.style={draw=gray!25,fill=gray!3,rounded corners=4pt,inner sep=6pt,minimum width=5.0cm,align=left,font=\sffamily\scriptsize,text=gray!45},
+        ansbox/.style={draw=teal!60!black,fill=teal!8,rounded corners=4pt,inner sep=8pt,minimum width=3.0cm,align=left,font=\sffamily\scriptsize},
+        stepbox/.style={draw=black!40,fill=white,rounded corners=3pt,inner sep=5pt,minimum width=2.6cm,minimum height=0.85cm,align=center,font=\sffamily\scriptsize},
+        dcabox/.style={draw=teal!70!black,fill=teal!10,rounded corners=3pt,inner sep=5pt,minimum width=2.6cm,minimum height=0.85cm,align=center,font=\sffamily\scriptsize\bfseries},
+        llmcirc/.style={circle,draw=gray!60,fill=blue!5,minimum size=1.1cm,align=center,font=\sffamily\scriptsize},
+        bigllm/.style={circle,draw=teal!60,fill=teal!8,minimum size=1.25cm,align=center,font=\sffamily\scriptsize},
+        arr/.style={->,thick,draw=gray!70},
+        rarr/.style={->,thick,draw=red!60},
+        tarr/.style={->,thick,draw=teal!70!black},
+      ]
 
-    \draw[arrow] (el)     -- node[label, right] {$\mathcal{E}_q$} (oracle);
-    \draw[arrow] (oracle) -- node[label, right] {Mask $\mathbf{m}_t$} (cd);
-    \draw[arrow] (cd)     -- node[label, right] {$K$ reasoning paths} (ir);
-    \draw[arrow] (ir)     -- (ans);
+      % Knowledge Graph Section
+      \node[font=\sffamily\footnotesize\bfseries]at(2.5,0.2){Knowledge Graph};
+      \node[kgnode](usa)at(0,-2.5){USA};
+      \node[kgnode](gwb)at(2.1,-1.0){George W.\\Bush};
+      \node[kgnode](lb)at(4.5,-1.0){Laura\\Bush};
+      \node[kgnode](bo)at(2.3,-2.5){Barack\\Obama};
+      \node[kgnode](mo)at(4.5,-2.5){Michelle\\Obama};
+      \node[kgnode](dt)at(2.3,-4.0){Donald\\Trump};
+      \node[kgnode](mt)at(4.5,-4.0){Melania\\Trump};
 
-    \node[label, right=0.3cm of oracle] {\textit{← Primary contribution}};
-  \end{tikzpicture}
-  \caption[DCA‑Trie system architecture]{DCA‑Trie system architecture. The constraint oracle layer (teal) is the primary contribution; all other layers are inherited from GCR~\citep{luo2025-graph-constrained-reasoning}.}
+      \draw[arr](usa)--node[above,sloped,font=\sffamily\tiny,pos=0.45]{Ex-president}(gwb);
+      \draw[arr](usa)--node[above,font=\sffamily\tiny,pos=0.5]{Ex-president}(bo);
+      \draw[arr](usa)--node[below,sloped,font=\sffamily\tiny,pos=0.45]{President}(dt);
+      \draw[arr](gwb)--node[above,font=\sffamily\tiny]{Spouse\_of}(lb);
+      \draw[arr](bo)--node[above,font=\sffamily\tiny]{Spouse\_of}(mo);
+      \draw[arr](dt)--node[above,font=\sffamily\tiny]{Marry\_to}(mt);
+
+      \node[draw=red!40,fill=red!5,rounded corners=4pt,inner sep=6pt,align=left,
+        font=\sffamily\scriptsize,minimum width=2.9cm]
+      (qbox)at(2.5,-6.4){\textbf{Q:} Who is the spouse of\\the ex-president of USA?};
+      \node[circle,draw=black!35,fill=black!6,font=\sffamily\footnotesize\bfseries,inner sep=3pt]at(-0.1,-5.1){1};
+      \node[font=\sffamily\scriptsize,text=black!65,align=center]at(1.5,-5.1){KG-Trie Construction};
+
+      % DCA-Trie Constraint Section
+      \draw[draw=teal!60!black,dashed,rounded corners=6pt,line width=1.2pt](6.0,0.3)rectangle(10.5,-7.4);
+      \node[font=\sffamily\footnotesize\bfseries,text=teal!70!black]at(8.25,0.1){DCA-Trie Constraint};
+      \node[dcabox,minimum width=3.8cm](vf)at(8.25,-0.8){Semantic Filtering\\score$(p,q,y_{<t})\geq\tau$};
+      \node[draw=teal!45,fill=teal!5,rounded corners=4pt,minimum width=4.0cm,minimum height=2.4cm](triebox)at(8.25,-2.9){};
+      \node[font=\sffamily\scriptsize\bfseries,text=teal!80!black]at(8.25,-1.9){Filtered KG-Trie};
+
+      \node[circle,draw=teal!60,fill=teal!18,inner sep=2pt,font=\sffamily\tiny](tr)at(8.25,-2.3){USA};
+      \node[circle,draw=teal!50,fill=white,inner sep=1.5pt,font=\sffamily\tiny](tn1)at(7.25,-2.9){GWB};
+      \node[circle,draw=teal!50,fill=white,inner sep=1.5pt,font=\sffamily\tiny](tn2)at(8.25,-2.9){BO};
+      \node[circle,draw=gray!25,fill=gray!4,inner sep=1.5pt,font=\sffamily\tiny,text=gray!40](tn3)at(9.25,-2.9){DT};
+      \node[circle,draw=teal!50,fill=white,inner sep=1.5pt,font=\sffamily\tiny](tl1)at(7.0,-3.5){LB};
+      \node[circle,draw=teal!50,fill=white,inner sep=1.5pt,font=\sffamily\tiny](tl2)at(8.5,-3.5){MO};
+
+      \draw[teal!50,thin](tr)--(tn1); \draw[teal!50,thin](tr)--(tn2);
+      \draw[gray!25,thin,dashed](tr)--(tn3);
+      \draw[teal!50,thin](tn1)--(tl1); \draw[teal!50,thin](tn2)--(tl2);
+      \node[font=\sffamily\tiny,text=gray!50,align=center]at(9.25,-3.5){pruned\\$<\!\tau$};
+
+      \node[draw=teal!35,fill=teal!5,rounded corners=3pt,inner sep=4pt,font=\sffamily\tiny,align=center]
+      (upd)at(8.25,-4.9){v2: step-wise update\\re-score $\mathcal{N}(e^{*})$ vs $(q,y_{<t})$};
+      \node[llmcirc](kgllm)at(8.25,-6.5){KG-spec.\\LLM};
+
+      \draw[rarr,rounded corners](qbox.east)-- (5.6,-6.4) |- (vf.west);
+      \draw[tarr](vf)--(triebox.north);
+      \draw[tarr](triebox.south)--(upd.north);
+      \draw[tarr](upd)--(kgllm);
+      \node[circle,draw=teal!70!black,fill=teal!10,font=\sffamily\footnotesize\bfseries,inner sep=3pt]at(6.5,-7){2};
+
+      % Reasoning Paths and Hypothesis Answers Section
+      \node[font=\sffamily\footnotesize\bfseries,align=center]at(13.5,0.2){Reasoning Paths and\\Hypothesis Answers};
+      \node[pathbox](p1)at(13.7,-1.3){%
+        \texttt{\# Reasoning Path (t=1):}\\[1pt]
+        USA $\to$ G.W.\,Bush $\to$ Laura Bush\\[3pt]
+        \texttt{\# Answer: Laura Bush}};
+      \node[pathbox](p2)at(13.7,-3.2){%
+        \texttt{\# Reasoning Path (t=2):}\\[1pt]
+        USA $\to$ B.\,Obama $\to$ Michelle Obama\\[3pt]
+        \texttt{\# Answer: Michelle Obama}};
+      \node[filtpath](p3)at(13.7,-5.5){%
+        \texttt{[Excluded by DCA-Trie]}\\[1pt]
+        USA $\to$ D.\,Trump $\to$ Melania Trump\\[3pt]
+        score $<\tau$ --- structurally valid,\\
+        semantically irrelevant};
+
+      \draw[tarr,rounded corners](kgllm.east)-- (10.8,-6.5) |- (p1.west);
+      \draw[tarr,rounded corners](kgllm.east)-- (10.8,-6.5) |- (p2.west);
+      \draw[tarr,dashed,draw=teal!60,rounded corners](kgllm.east)-- (10.8,-6.5) |- (p3.west);
+
+      % General LLM Section
+      \node[font=\sffamily\footnotesize\bfseries]at(18.5,0.2){General LLM};
+      \node[bigllm](gllm)at(18.7,-1.8){General\\LLM};
+      \node[ansbox](ans)at(18.7,-4.8){%
+        \textbf{A:} Based on the paths,\\
+        the answers are:\\[3pt]
+        \textbf{Laura Bush,}\\
+        \textbf{Michelle Obama.}\\[4pt]
+        \small\textit{(Trump path excluded}\\
+        \textit{by semantic filter)}};
+      \node[circle,draw=black!35,fill=black!6,font=\sffamily\footnotesize\bfseries,inner sep=3pt]at(16.9,-0.8){3};
+      \node[font=\sffamily\scriptsize,text=black!65]at(18.5,-0.8){Inductive Reasoning};
+
+      \draw[arr,rounded corners](p1.east) -| (16.4,-1.8) -- (gllm.west);
+      \draw[arr,rounded corners](p2.east) -| (16.4,-1.8) -- (gllm.west);
+      \draw[tarr](gllm)--(ans);
+
+      % Footer Steps Section
+      \draw[gray!50,dashed](0,-7.8)--(20.0,-7.8);
+      \node[stepbox]at(2.5,-8.6){1.\ KG-Trie Construction\\BFS from $\mathcal{E}_q$};
+      \node[dcabox]at(8.25,-8.6){2.\ DCA-Trie Filtering\\score$(p,q,y_{<t})\geq\tau$};
+      \node[stepbox]at(13.5,-8.6){Constrained Beam Search\\$K$ hypothesis paths};
+      \node[stepbox]at(17.5,-8.6){3.\ Inductive Reasoning\\synthesise answer};
+
+      \draw[arr](4,-8.6)--(6.8,-8.6);
+      \draw[tarr](9.7,-8.6)--(11.8,-8.6);
+      \draw[arr](15.2,-8.6)--(16.0,-8.6);
+    \end{tikzpicture}
+  }%
+  \caption[DCA‑Trie System Architecture]{DCA‑Trie System Architecture. The constraint oracle layer (teal) is the primary contribution; all other layers are inherited from GCR~\citep{luo2025-graph-constrained-reasoning}.}
   \label{fig:architecture}
 \end{figure}
 
@@ -222,7 +345,7 @@ A candidate path is admitted into $\mathcal{W}_{\text{val}}^{\text{DCA}}(t)$ if 
 
     \draw[arrow] (cos) -- node[right, font=\footnotesize] {Score $s$} (thresh);
   \end{tikzpicture}
-  \caption[Semantic relevance scoring mechanism]{The semantic relevance scoring mechanism.}
+  \caption[Semantic Relevance Scoring Mechanism]{Semantic Relevance Scoring Mechanism.}
   \label{fig:scorer}
 \end{figure}
 
@@ -279,7 +402,7 @@ Methodologically, this changes the oracle from $f(\mathcal{G}, \mathcal{E}_q)$ t
 
     \draw[arrow] (filter) -- node[right, font=\footnotesize] {$\mathcal{P}_{\text{filtered}}$} (trie);
   \end{tikzpicture}
-  \caption[Static semantic filtering pipeline (DCA‑Trie v1)]{Static semantic filtering pipeline for DCA‑Trie v1. }
+  \caption[Static Semantic Filtering Pipeline (DCA‑Trie v1)]{Static Semantic Filtering Pipeline for DCA‑Trie v1.}
   \label{fig:v1}
 \end{figure}
 
@@ -404,7 +527,7 @@ where $\mathcal{T}_{\mathcal{G}}$ is the set of graph triplets. The core differe
     \draw[arrow] (commit) -| node[pos=0.25, below, font=\footnotesize] {Trigger Expansion} (expand);
     \draw[arrow] (expand) |- node[pos=0.75, above, font=\footnotesize] {Update to $\mathcal{T}_t$} (trie);
   \end{tikzpicture}
-  \caption[Step-wise dynamic expansion workflow (DCA‑Trie v2)]{Step‑Wise Dynamic Expansion workflow for DCA‑Trie v2.}
+  \caption[Step-Wise Dynamic Expansion Workflow (DCA‑Trie v2)]{Step‑Wise Dynamic Expansion Workflow for DCA‑Trie v2.}
   \label{fig:v2}
 \end{figure}
 
