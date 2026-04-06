@@ -378,7 +378,7 @@ Methodologically, this changes the oracle from $f(\mathcal{G}, \mathcal{E}_q)$ t
     ]
 
     \node[box] (query) {Question $q$};
-    \node[db, right=3.4cm of query] (kg) {Knowledge\\Graph $\mathcal{G}$};
+    \node[db, right=2.5cm of query] (kg) {Knowledge\\Graph $\mathcal{G}$};
 
     \node[box, below=0.95cm of query] (qenc) {Precompute\\Query Vector $\mathbf{u}$};
     \node[box, below=0.95cm of kg] (bfs) {BFS Enumeration\\(Max $L$ hops)};
@@ -397,7 +397,7 @@ Methodologically, this changes the oracle from $f(\mathcal{G}, \mathcal{E}_q)$ t
     \draw[arrow] (kg) -- (bfs);
     \draw[arrow] (bfs) -- (paths);
 
-    \draw[arrow] (qenc.south) -- ++(0,-0.35) -| ([xshift=-2.2cm]filter.north);
+    \draw[arrow] (qenc.south) -- ([xshift=-3.2cm]filter.north);
     \draw[arrow] (paths.south) -- ([xshift=2.2cm]filter.north);
 
     \draw[arrow] (filter) -- node[right, font=\footnotesize] {$\mathcal{P}_{\text{filtered}}$} (trie);
